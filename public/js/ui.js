@@ -296,7 +296,7 @@
       scale: scale,
       quality: 0.92,
       transparent: format === 'png' && $('export-transparent').checked,
-      filename: 'ducc-drawing-' + timestamp()
+      filename: 'aipaint-drawing-' + timestamp()
     };
     btn.disabled = true;
     status('服务端渲染中…');
@@ -329,7 +329,7 @@
   }
   function saveJSON() {
     var text = JSON.stringify(Store.state.scene, null, 2);
-    download(new global.Blob([text], { type: 'application/json' }), 'ducc-scene-' + timestamp() + '.json');
+    download(new global.Blob([text], { type: 'application/json' }), 'aipaint-scene-' + timestamp() + '.json');
     status('场景已存为 JSON', 'ok');
   }
 
@@ -481,14 +481,14 @@
   }
   /* ---------------- 启动 ---------------- */
 
-  var SEED_KEY = 'ducc-draw:seeded:v1';
+  var SEED_KEY = 'aipaint:seeded:v1';
 
   function demoScene() {
     return {
       width: 1280, height: 800, background: '#ffffff',
       shapes: [
         { type: 'rect', x: 80, y: 70, w: 1120, h: 160, radius: 18, fill: '#eef4ff', stroke: '#4c8dff', strokeWidth: 2 },
-        { type: 'text', x: 120, y: 105, text: '欢迎使用 Ducc Draw', fontSize: 46, fill: '#1d3f7a', fontFamily: 'sans', bold: true },
+        { type: 'text', x: 120, y: 105, text: '欢迎使用 AIPaint', fontSize: 46, fill: '#1d3f7a', fontFamily: 'sans', bold: true },
         { type: 'text', x: 122, y: 168, text: '浏览器里编辑，服务端 node-canvas 导出图片', fontSize: 20, fill: '#5b6b86' },
         { type: 'rect', x: 130, y: 330, w: 240, h: 150, radius: 12, fill: '#dbeafe', stroke: '#2563eb', strokeWidth: 3 },
         { type: 'text', x: 186, y: 392, text: '拖拽绘制', fontSize: 26, fill: '#1e40af' },

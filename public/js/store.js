@@ -5,7 +5,7 @@
 (function (global) {
   'use strict';
   var M = global.SceneModel;
-  var LS_KEY = 'ducc-draw:scene:v1';
+  var LS_KEY = 'aipaint:scene:v1';
   var HISTORY_LIMIT = 120;
 
   var state = {

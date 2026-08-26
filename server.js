@@ -48,7 +48,7 @@ const FONT_CANDIDATES = {
     'C:/Windows/Fonts/msyh.ttc'
   ]
 };
-const FAMILY_NAMES = { sans: 'DuccSans', serif: 'DuccSerif', mono: 'DuccMono', cjk: 'DuccCJK' };
+const FAMILY_NAMES = { sans: 'AIPaintSans', serif: 'AIPaintSerif', mono: 'AIPaintMono', cjk: 'AIPaintCJK' };
 const GENERIC = { sans: 'sans-serif', serif: 'serif', mono: 'monospace' };
 
 function registerFonts() {
@@ -192,7 +192,7 @@ app.post('/api/export', async (req, res) => {
 });
 if (require.main === module) {
   app.listen(PORT, HOST, () => {
-    console.log(`画图工具已启动: http://${HOST}:${PORT}`);
+    console.log(`AIPaint 已启动: http://${HOST}:${PORT}`);
     const missing = ['sans', 'serif', 'mono', 'cjk'].filter((k) => !FONT_SETUP.registered[k]);
     if (missing.length) {
       console.log(`提示: 未找到这些字体，将回落到系统默认: ${missing.join(', ')}`);
