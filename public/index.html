@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ducc Draw · 可交互画图工具</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><span class="logo">◆</span>Ducc Draw</div>
+
+    <div class="group">
+      <span class="label">画布</span>
+      <input id="canvas-w" class="num" type="number" min="1" max="8000" step="1" title="画布宽度">
+      <span class="mul">×</span>
+      <input id="canvas-h" class="num" type="number" min="1" max="8000" step="1" title="画布高度">
+      <select id="preset-size" class="sel" title="常用尺寸">
+        <option value="">尺寸预设</option>
+        <option value="1280x800">1280 × 800</option>
+        <option value="1920x1080">1920 × 1080</option>
+        <option value="1080x1080">1080 × 1080（方图）</option>
+        <option value="1080x1440">1080 × 1440（3:4）</option>
+        <option value="750x1334">750 × 1334（手机）</option>
+        <option value="800x600">800 × 600</option>
+      </select>
+      <input id="canvas-bg" type="color" class="color" title="画布底色">
+    </div>
+
+    <div class="group">
+      <button id="undo" class="icon" title="撤销 (⌘Z)">↶</button>
+      <button id="redo" class="icon" title="重做 (⇧⌘Z)">↷</button>
+    </div>
+
+    <div class="group">
+      <button id="zoom-out" class="icon" title="缩小 (⌘-)">−</button>
+      <button id="zoom-level" class="zoom" title="点击回到 100% (⌘0)">100%</button>
+      <button id="zoom-in" class="icon" title="放大 (⌘+)">+</button>
+      <button id="zoom-fit" title="适应窗口 (⇧1)">适应</button>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="group">
+      <label class="chk"><input type="checkbox" id="toggle-grid" checked>网格</label>
+      <label class="chk"><input type="checkbox" id="toggle-snap">吸附</label>
+    </div>
+
+    <div class="group">
+      <button id="btn-import-json" title="从 JSON 文件恢复场景">导入</button>
+      <button id="btn-save-json" title="把场景存成 JSON">存档</button>
+      <button id="btn-clear" title="清空画布">清空</button>
+    </div>
+
+    <div class="group export">
+      <select id="export-format" class="sel" title="导出格式">
+        <option value="png">PNG</option>
+        <option value="jpeg">JPEG</option>
+      </select>
+      <select id="export-scale" class="sel" title="导出倍率">
+        <option value="1">1×</option>
+        <option value="2" selected>2×</option>
+        <option value="3">3×</option>
+        <option value="4">4×</option>
+      </select>
+      <label class="chk" id="transparent-wrap"><input type="checkbox" id="export-transparent">透明底</label>
+      <button id="btn-export" class="primary" title="调用服务端 node-canvas 渲染并下载">服务端导出</button>
+    </div>
+  </header>
+
+  <div class="body">
+    <aside class="toolbar" id="toolbar">
+      <button class="tool active" data-tool="select" title="选择 / 移动 (V)"><span class="ico">➚</span><span class="cap">选择</span></button>
+      <button class="tool" data-tool="rect" title="矩形 (R)"><span class="ico">▭</span><span class="cap">矩形</span></button>
+      <button class="tool" data-tool="ellipse" title="椭圆 (O)"><span class="ico">◯</span><span class="cap">椭圆</span></button>
+      <button class="tool" data-tool="diamond" title="菱形 (D)"><span class="ico">◇</span><span class="cap">菱形</span></button>
+      <button class="tool" data-tool="line" title="直线 (L)"><span class="ico">╱</span><span class="cap">直线</span></button>
+      <button class="tool" data-tool="arrow" title="箭头 (A)"><span class="ico">↗</span><span class="cap">箭头</span></button>
+      <button class="tool" data-tool="pen" title="自由画笔 (P)"><span class="ico">✎</span><span class="cap">画笔</span></button>
+      <button class="tool" data-tool="text" title="文本 (T)，双击可编辑"><span class="ico">T</span><span class="cap">文本</span></button>
+      <button class="tool" data-tool="image" title="插入图片 (I)"><span class="ico">🖼</span><span class="cap">图片</span></button>
+    </aside>
+    <main class="stage" id="stage">
+      <canvas id="board"></canvas>
+      <textarea id="text-editor" spellcheck="false" hidden></textarea>
+    </main>
+
+    <aside class="props" id="props">
+      <section class="panel">
+        <h3>样式</h3>
+        <div class="row">
+          <span class="k">填充</span>
+          <input type="color" id="p-fill" class="color">
+          <label class="chk"><input type="checkbox" id="p-fill-none">无</label>
+        </div>
+        <div class="row">
+          <span class="k">描边</span>
+          <input type="color" id="p-stroke" class="color">
+          <label class="chk"><input type="checkbox" id="p-stroke-none">无</label>
+        </div>
+        <div class="row">
+          <span class="k">线宽</span>
+          <input type="range" id="p-strokeWidth" min="0" max="40" step="1">
+          <output id="p-strokeWidth-out">2</output>
+        </div>
+        <div class="row">
+          <span class="k">线型</span>
+          <select id="p-dash" class="sel grow">
+            <option value="solid">实线</option>
+            <option value="dashed">虚线</option>
+            <option value="dotted">点线</option>
+          </select>
+        </div>
+        <div class="row">
+          <span class="k">透明</span>
+          <input type="range" id="p-opacity" min="0" max="1" step="0.05">
+          <output id="p-opacity-out">100%</output>
+        </div>
+        <div class="row" data-only="rect">
+          <span class="k">圆角</span>
+          <input type="range" id="p-radius" min="0" max="120" step="1">
+          <output id="p-radius-out">8</output>
+        </div>
+      </section>
+      <section class="panel" data-only="text">
+        <h3>文本</h3>
+        <div class="row">
+          <span class="k">字号</span>
+          <input type="number" id="p-fontSize" class="num grow" min="4" max="400" step="1">
+        </div>
+        <div class="row">
+          <span class="k">字体</span>
+          <select id="p-fontFamily" class="sel grow">
+            <option value="sans">无衬线</option>
+            <option value="serif">衬线</option>
+            <option value="mono">等宽</option>
+          </select>
+        </div>
+        <div class="row">
+          <span class="k">对齐</span>
+          <div class="seg" id="p-textAlign">
+            <button data-val="left">左</button>
+            <button data-val="center">中</button>
+            <button data-val="right">右</button>
+          </div>
+        </div>
+        <div class="row">
+          <span class="k">字重</span>
+          <div class="seg">
+            <button id="p-bold" class="toggle"><b>B</b></button>
+            <button id="p-italic" class="toggle"><i>I</i></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-geometry">
+        <h3>位置与尺寸</h3>
+        <div class="grid2">
+          <label>X<input type="number" id="p-x" class="num" step="1"></label>
+          <label>Y<input type="number" id="p-y" class="num" step="1"></label>
+          <label>宽<input type="number" id="p-w" class="num" step="1" min="1"></label>
+          <label>高<input type="number" id="p-h" class="num" step="1" min="1"></label>
+        </div>
+        <div class="row">
+          <span class="k">旋转</span>
+          <input type="range" id="p-rotation" min="-180" max="180" step="1">
+          <output id="p-rotation-out">0°</output>
+        </div>
+      </section>
+      <section class="panel">
+        <h3>层级与操作</h3>
+        <div class="row wrap">
+          <button data-order="front" title="置顶 (⌘⇧])">置顶</button>
+          <button data-order="up" title="上移 (⌘])">上移</button>
+          <button data-order="down" title="下移 (⌘[)">下移</button>
+          <button data-order="back" title="置底 (⌘⇧[)">置底</button>
+        </div>
+        <div class="row wrap">
+          <button id="btn-duplicate" title="复制 (⌘D)">复制</button>
+          <button id="btn-delete" class="danger" title="删除 (Delete)">删除</button>
+        </div>
+      </section>
+
+      <section class="panel empty" id="panel-empty">
+        <h3>没有选中对象</h3>
+        <p class="hint">左侧选一个工具在画布上拖拽即可绘制。此处的样式会作为新图形的默认样式。</p>
+        <ul class="keys">
+          <li><kbd>V</kbd> 选择 · <kbd>R</kbd> 矩形 · <kbd>O</kbd> 椭圆 · <kbd>T</kbd> 文本</li>
+          <li><kbd>双击</kbd> 编辑文本 · <kbd>Delete</kbd> 删除</li>
+          <li><kbd>空格</kbd>+拖拽 或 <kbd>中键</kbd> 平移画布</li>
+          <li><kbd>⌘</kbd>+滚轮 缩放 · <kbd>⇧</kbd> 拖拽保持等比</li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+
+  <footer class="statusbar">
+    <span id="status-left">就绪</span>
+    <span id="status-msg" class="msg"></span>
+    <span id="status-right"></span>
+  </footer>
+</div>
+
+<input type="file" id="file-image" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
+<input type="file" id="file-json" accept="application/json,.json" hidden>
+
+<script src="/shared/scene.js"></script>
+<script src="/shared/renderer.js"></script>
+<script src="js/store.js"></script>
+<script src="js/view.js"></script>
+<script src="js/input.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "draw-canvas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "可交互画图工具：浏览器端编辑画布，服务端用 node-canvas 导出图片",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "canvas": "3.2.3",
+    "express": "5.2.1"
+  }
+}
