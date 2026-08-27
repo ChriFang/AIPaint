@@ -842,6 +842,37 @@ test('文本附件：超长截断，chip 上写明白', async () => {
   assert.equal(a.truncated, true);
 });
 
+test('常用代码附件按文本资料读取', async () => {
+  const p = boot({ reply: replyWith(stream(), 8192) });
+  await settle();
+  p.attach([
+    textFile('main.c', '#include <stdio.h>', ''),
+    textFile('widget.cpp', 'int main() { return 0; }', ''),
+    textFile('script.py', 'print("hello")', 'text/x-python'),
+    textFile('app.ts', 'const answer: number = 42;', 'text/typescript')
+  ], 'doc');
+  await settle();
+
+  assert.deepEqual(p.chips().map((c) => c.name), [
+    'main.c', 'widget.cpp', 'script.py', 'app.ts'
+  ]);
+  p.send('根据这些代码制作一张说明图');
+  await settle();
+  const attachments = JSON.parse(p.fetches[1].init.body).attachments;
+  assert.deepEqual(attachments.map((a) => [a.name, a.kind]), [
+    ['main.c', 'text'],
+    ['widget.cpp', 'text'],
+    ['script.py', 'text'],
+    ['app.ts', 'text']
+  ]);
+  assert.deepEqual(attachments.map((a) => a.text), [
+    '#include <stdio.h>',
+    'int main() { return 0; }',
+    'print("hello")',
+    'const answer: number = 42;'
+  ]);
+});
+
 test('读不了的东西一律说清楚，不静默忽略', async () => {
   const p = boot();
   await settle();
