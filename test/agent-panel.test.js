@@ -52,6 +52,7 @@ const IDS = ['chat-panel', 'chat-log', 'chat-form', 'chat-input', 'chat-send', '
   'cfg-note', 'cfg-cancel', 'cfg-save'];
 
 const DEFAULT_BASE = 'https://api.deepseek.com';
+const KEY_DOTS = '••••••••••••';
 /** 凭证端点的默认回放：没配过 key，.env 还不存在 */
 const CRED = {
   baseUrl: DEFAULT_BASE, baseUrlDefault: DEFAULT_BASE, hasApiKey: false, apiKeyMasked: '',
@@ -475,7 +476,7 @@ async function openCfg(p) {
   };
 }
 
-test('点状态行开配置：预填当前值，掩码只进 placeholder 绝不回填', async () => {
+test('没配过的时候：地址明文预填默认值，key 框是空的', async () => {
   const p = boot({ config: { hasApiKey: false } });
   await settle();
   const d = await openCfg(p);
@@ -483,20 +484,54 @@ test('点状态行开配置：预填当前值，掩码只进 placeholder 绝不�
   assert.equal(d.wrap.hidden, false);
   assert.ok(p.fetches.some((f) => f.url === '/api/agent/credentials' && !f.init));
   assert.equal(d.base.placeholder, DEFAULT_BASE);
-  assert.equal(d.base.value, '', '和默认值一样就留空，别往 .env 里塞一行等于默认的配置');
-  assert.equal(d.key.value, '', 'key 输入框永远是空的');
+  assert.equal(d.base.value, DEFAULT_BASE, '明文写出来，一眼看得出在打哪个端点');
+  assert.equal(d.key.value, '', '没配过就没什么可回填的');
+  assert.equal(d.key.placeholder, 'sk-…');
   assert.ok(d.base.focused, '打开就该能直接打字');
 });
 
-test('已有 key 时：掩码只出现在 placeholder 里，自定义 baseUrl 回填进输入框', async () => {
+test('已配置：地址明文回填，key 回填成圆点，掩码一处都不出现', async () => {
   const p = boot({ cred: { hasApiKey: true, apiKeyMasked: 'sk-tes…cdef', fromEnvFile: true,
     envExists: true, baseUrl: 'https://proxy.example/v1' } });
   await settle();
   const d = await openCfg(p);
   assert.equal(d.base.value, 'https://proxy.example/v1');
-  assert.match(d.key.placeholder, /已配置 sk-tes…cdef，留空表示不改/);
-  assert.equal(d.key.value, '', '把掩码回填进输入框，一保存就会把 sk-tes…cdef 当成真 key 写回去');
+  assert.equal(d.key.value, KEY_DOTS, '密文占位，不是真 key 也不是掩码');
+  assert.equal(d.key.placeholder, '留空表示不改');
+  assert.ok(!/sk-/.test(d.key.value + '|' + d.key.placeholder + '|' + d.note.textContent),
+    '掩码回填进输入框，一保存就会把 sk-tes…cdef 当成真 key 写回去');
   assert.equal(d.note.className, 'modal-note', 'key 就在 .env 里，没什么要警告的');
+  assert.match(d.note.textContent, /不动它就直接保存/);
+});
+
+test('已配置后原样保存：key 送空串表示不改，等于默认的地址也不落盘', async () => {
+  const p = boot({ cred: { hasApiKey: true, apiKeyMasked: 'sk-tes…cdef', fromEnvFile: true,
+    envExists: true, baseUrl: DEFAULT_BASE } });
+  await settle();
+  const d = await openCfg(p);
+  assert.equal(d.base.value, DEFAULT_BASE);
+  p.els['cfg-form'].fire('submit');
+  await settle();
+
+  const post = p.fetches.filter((f) => f.url === '/api/agent/credentials' && f.init && f.init.method === 'POST')[0];
+  assert.deepEqual(JSON.parse(post.init.body), { baseUrl: '', apiKey: '' },
+    '什么都没动就什么都别改：圆点不是 key，默认地址不用写进 .env');
+});
+
+test('聚焦 key 框就把圆点清掉：打出来的是纯粹的新 key', async () => {
+  const p = boot({ cred: { hasApiKey: true, apiKeyMasked: 'sk-tes…cdef', fromEnvFile: true, envExists: true } });
+  await settle();
+  const d = await openCfg(p);
+  assert.equal(d.key.value, KEY_DOTS);
+
+  d.key.fire('focus');
+  assert.equal(d.key.value, '', '不清掉就会攒成「圆点 + 新字符」');
+  d.key.value = 'sk-new-0123456789abcdef';
+  p.els['cfg-form'].fire('submit');
+  await settle();
+
+  const post = p.fetches.filter((f) => f.url === '/api/agent/credentials' && f.init && f.init.method === 'POST')[0];
+  assert.equal(JSON.parse(post.init.body).apiKey, 'sk-new-0123456789abcdef');
 });
 
 test('key 来自 shell 时明说写文件没用', async () => {

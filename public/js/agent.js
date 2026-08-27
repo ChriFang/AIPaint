@@ -399,6 +399,14 @@
 
   var CRED_URL = '/api/agent/credentials';
   var needKey = [];   // 「还没配置 key」那几条提示。前提没了就得撤掉
+  var defBase = 'https://api.deepseek.com';   // 服务端给的默认地址，保存时用来判「等于默认」
+
+  /**
+   * 已配置时放进 key 输入框的一串定长圆点。这样「已经配好了」看得见，而 DOM 里
+   * 又不出现真 key，连掩码都不出现。保存时原样等于它就当「不改」；聚焦即清空，
+   * 所以不会攒成「圆点 + 新字符」；万一还是漏出去，服务端的字符白名单也会直接拒掉。
+   */
+  var KEY_DOTS = '••••••••••••';
 
   function cfgNote(text, cls) {
     dlg.note.textContent = text;
@@ -431,8 +439,9 @@
   }
 
   /**
-   * 打开就去拉一次当前配置。key 拿回来的是掩码，只能放进 placeholder 当提示，
-   * 绝不回填到输入框里 —— 那会让「原样保存」把掩码当成真 key 写回 .env。
+   * 打开就去拉一次当前配置。地址明文回填（包括默认值）—— 一眼看得出现在到底在打哪个
+   * 端点。key 只回填成一串圆点：真 key 和掩码都不进 DOM，也就不可能被「原样保存」
+   * 当成新 key 写回 .env。
    */
   async function openSettings() {
     if (!dlgOk) return;
@@ -450,16 +459,17 @@
     }
     if (dlg.wrap.hidden) return;   // 请求飞行期间被关掉了，别再往上写
 
-    var def = info.baseUrlDefault || 'https://api.deepseek.com';
-    dlg.base.placeholder = def;
-    // 和默认值一样就留空：省得往 .env 里塞一行等于默认值的配置
-    dlg.base.value = info.baseUrl && info.baseUrl !== def ? info.baseUrl : '';
-    dlg.key.placeholder = info.hasApiKey ? '已配置 ' + info.apiKeyMasked + '，留空表示不改' : 'sk-…';
+    defBase = info.baseUrlDefault || defBase;
+    dlg.base.placeholder = defBase;
+    dlg.base.value = info.baseUrl || defBase;
+    dlg.key.value = info.hasApiKey ? KEY_DOTS : '';
+    dlg.key.placeholder = info.hasApiKey ? '留空表示不改' : 'sk-…';
     if (info.hasApiKey && !info.fromEnvFile) {
       // shell 里的变量盖过文件，这时候写 .env 是白写，必须说清楚
       cfgNote('当前 key 来自 shell 环境变量，优先级比 .env 高。要用文件里的值，得先在 shell 里 unset DEEPSEEK_API_KEY 再重启。', 'err');
     } else {
-      cfgNote('保存后立即生效，不用重启。文件按 0600 写，只有你自己能读。', '');
+      cfgNote((info.hasApiKey ? 'key 已配置，不动它就直接保存。' : '') +
+        '保存后立即生效，不用重启。文件按 0600 写，只有你自己能读。', '');
     }
   }
 
@@ -471,13 +481,17 @@
 
   async function saveSettings() {
     if (!dlgOk || dlg.save.disabled) return;
+    // 等于默认地址就当没填：.env 里不留一行等于默认值的配置。
+    // 圆点没被动过就是「不改 key」，服务端收到空串会绕开原来那行。
+    var base = dlg.base.value.trim();
+    var key = dlg.key.value === KEY_DOTS ? '' : dlg.key.value.trim();
     dlg.save.disabled = true;
     cfgNote('正在写入…', '');
     try {
       var res = await global.fetch(CRED_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ baseUrl: dlg.base.value.trim(), apiKey: dlg.key.value.trim() })
+        body: JSON.stringify({ baseUrl: base === defBase ? '' : base, apiKey: key })
       });
       var info = null;
       try { info = await res.json(); } catch (err) { info = null; }
@@ -538,6 +552,11 @@
     if (dlgOk) {
       dlg.form.addEventListener('submit', function (ev) { ev.preventDefault(); saveSettings(); });
       dlg.cancel.addEventListener('click', closeSettings);
+      // 一聚焦就把占位圆点清掉：接着打字得到的是纯粹的新 key，不会是「圆点 + 新字符」。
+      // 清空之后原地不动地关掉浮层也无所谓 —— 空串和圆点都表示「不改」。
+      dlg.key.addEventListener('focus', function () {
+        if (dlg.key.value === KEY_DOTS) dlg.key.value = '';
+      });
       // 点背景（不是卡片本身）关掉
       dlg.wrap.addEventListener('click', function (ev) { if (ev.target === dlg.wrap) closeSettings(); });
       // 焦点在浮层里时 Esc 关闭，并且不让这个键漏给 input.js 的画布快捷键
