@@ -40,7 +40,7 @@ function load() {
     reasoningEffort: EFFORTS.indexOf(effort) >= 0 ? effort : 'medium',
     // 思考过程转发给面板（自己的 SSE 事件，绝不混进正文，也不回灌模型历史）。设 0 只留一条阶段提示
     streamReasoning: process.env.AGENT_STREAM_REASONING !== '0',
-    requestTimeoutMs: intEnv('AGENT_REQUEST_TIMEOUT_MS', 180000, 5000, 600000),
+    requestTimeoutMs: intEnv('AGENT_REQUEST_TIMEOUT_MS', 540000, 5000, 1200000),
     maxConcurrent: intEnv('AGENT_MAX_CONCURRENT', 2, 1, 8),
     // fixture：把 fetch 换成读 test/fixtures/*.sse，CI 不烧 API
     transport: process.env.AIPAINT_AGENT_TRANSPORT === 'fixture' ? 'fixture' : 'http',
