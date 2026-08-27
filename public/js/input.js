@@ -17,6 +17,17 @@
 
   function isVisible(v) { return M.isVisible(v); }
 
+  /**
+   * AI 模式下屏蔽「绘制」：工具键、拖拽出新图形、双击空白建文本。
+   * 选中、移动、缩放、平移都保留 —— 选中是 agent 的输入（「把这个改成红色」）。
+   * 查 DOM class 而不是查 Agent 模块：input.js 先加载，不能依赖 agent.js 已就位。
+   */
+  var appEl = null;
+  function drawLocked() {
+    if (!appEl) appEl = document.querySelector('.app');
+    return !!(appEl && appEl.classList.contains('ai-mode'));
+  }
+
   /** 新图形的初始样式，取自「最近一次使用」 */
   function styleFor(type) {
     var st = Store.state.style;
@@ -238,7 +249,7 @@
     }
     if (Store.state.editingTextId) closeTextEditor();
 
-    var tool = Store.state.tool;
+    var tool = drawLocked() ? 'select' : Store.state.tool;
     if (tool === 'select') {
       var h = View.handleAt(wp);
       if (h) {
@@ -269,7 +280,7 @@
 
   function updateHoverCursor(ev) {
     if (spaceDown) { canvas.style.cursor = 'grab'; return; }
-    var tool = Store.state.tool;
+    var tool = drawLocked() ? 'select' : Store.state.tool;
     if (tool !== 'select') { canvas.style.cursor = 'crosshair'; return; }
     var wp = View.eventToWorld(ev);
     var h = View.handleAt(wp);
@@ -465,7 +476,7 @@
     var wp = View.eventToWorld(ev);
     var hit = View.hitTest(wp);
     if (hit && hit.type === 'text') { openTextEditor(hit); return; }
-    if (!hit) createText(wp);          // 双击空白处快速加文字
+    if (!hit && !drawLocked()) createText(wp);   // 双击空白处快速加文字（AI 模式不建）
   }
 
   function onWheel(ev) {
@@ -549,6 +560,7 @@
     if (ev.shiftKey && ev.key === '!') { View.fit(); return; }   // ⇧1 适应窗口
     var tool = TOOL_KEYS[ev.key.toLowerCase()];
     if (tool) {
+      if (drawLocked()) return;   // AI 模式：工具键一律不响应（连 preventDefault 都不做）
       ev.preventDefault();
       if (tool === 'image') { if (global.UI && global.UI.pickImage) global.UI.pickImage(); return; }
       Store.setTool(tool);

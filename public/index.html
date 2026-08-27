@@ -43,6 +43,10 @@
     <div class="spacer"></div>
 
     <div class="group">
+      <button id="btn-mode-toggle" type="button" title="在 AI 模式和手动编辑之间切换">手动编辑</button>
+    </div>
+
+    <div class="group">
       <label class="chk"><input type="checkbox" id="toggle-grid" checked>网格</label>
       <label class="chk"><input type="checkbox" id="toggle-snap">吸附</label>
     </div>
@@ -193,6 +197,23 @@
         </ul>
       </section>
     </aside>
+
+    <aside class="chat" id="chat-panel">
+      <header class="chat-head">
+        <span class="chat-title">AI 绘图</span>
+        <button id="btn-agent-settings" class="icon" type="button" title="配置 API Base URL 和 API Key">⚙</button>
+        <button id="btn-agent-stop" class="danger" type="button" hidden>停止</button>
+      </header>
+      <div class="chat-log" id="chat-log" aria-live="polite"></div>
+      <form class="chat-composer" id="chat-form">
+        <textarea id="chat-input" rows="3" placeholder="说要画什么，例如：做一张 1200×675 的三栏产品对比图" spellcheck="false"></textarea>
+        <div class="chat-actions">
+          <!-- 状态行本身就是配置入口，所以是个真按钮：焦点、Enter、读屏都免费拿到 -->
+          <button class="chat-hint" id="chat-hint" type="button" title="点击配置模型"></button>
+          <button id="chat-send" class="primary" type="submit">发送</button>
+        </div>
+      </form>
+    </aside>
   </div>
 
   <footer class="statusbar">
@@ -202,14 +223,37 @@
   </footer>
 </div>
 
+<!-- 模型配置。放在 .app 外面：它是覆盖整屏的浮层，跟画布布局没关系。
+     key 只往上传、不往下取 —— 服务端回的永远是 sk-abc…wxyz 那种掩码。 -->
+<div class="modal" id="agent-settings" hidden>
+  <form class="modal-card" id="cfg-form" role="dialog" aria-modal="true" aria-labelledby="cfg-title">
+    <h3 id="cfg-title">模型配置</h3>
+    <label class="field">API Base URL
+      <input id="cfg-base-url" type="text" spellcheck="false" autocomplete="off" autocapitalize="off">
+    </label>
+    <label class="field">API Key
+      <input id="cfg-api-key" type="password" spellcheck="false" autocomplete="off">
+    </label>
+    <p class="modal-note" id="cfg-note"></p>
+    <div class="modal-actions">
+      <button type="button" id="cfg-cancel">取消</button>
+      <button type="submit" id="cfg-save" class="primary">保存</button>
+    </div>
+  </form>
+</div>
+
 <input type="file" id="file-image" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
 <input type="file" id="file-json" accept="application/json,.json" hidden>
 
 <script src="/shared/scene.js"></script>
 <script src="/shared/renderer.js"></script>
+<script src="/shared/scene-spec.js"></script>
 <script src="js/store.js"></script>
 <script src="js/view.js"></script>
 <script src="js/input.js"></script>
 <script src="js/ui.js"></script>
+<!-- agent.js 必须排在 ui.js 之后：两者都用 DOMContentLoaded 起步，
+     后注册的后执行，于是 agent.js 里可以直接用已经 init 过的 View / UI。 -->
+<script src="js/agent.js"></script>
 </body>
 </html>

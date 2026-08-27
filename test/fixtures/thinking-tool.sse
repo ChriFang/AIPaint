@@ -1,0 +1,25 @@
+data: {"id":"chatcmpl-fx1","object":"chat.completion.chunk","created":1,"model":"deepseek-v4-pro","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+: ping
+
+data: {"choices":[{"index":0,"delta":{"reasoning_content":"先算版面：画布 800×600，页边距 40，内容宽 720。"},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"reasoning_content":"标题条高 120，正文从 y=200 起，行距 1.4。"},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"type":"function","function":{"name":"set_scene","arguments":""}}]},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_0_layout","function":{"arguments":"{\"width\":800,\"height\":600,\"background\":\"#0f172a\","}}]},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"shapes\":[{\"type\":\"rect\",\"x\":40,\"y\":40,\"w\":720,\"h\":120,"}}]},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"fill\":\"#1e293b\",\"radius\":12},"}}]},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"type\":\"text\",\"x\":64,\"y\":72,\"text\":\"季度回顾\",\"fontSize\":36,"}}]},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"bold\":true,\"fill\":\"#f8fafc\"}]}"}}]},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
+
+data: {"choices":[],"usage":{"prompt_tokens":1284,"completion_tokens":316,"total_tokens":1600}}
+
+data: [DONE]

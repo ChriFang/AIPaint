@@ -1,0 +1,7 @@
+data: {"choices":[{"index":0,"delta":{"content":"我再试一次。"},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_bad_2","type":"function","function":{"name":"set_scene","arguments":"{\"width\":800,\"height\":600,\"background\":\"#ffffff\",\"shapes\":[{\"type\":\"rect\",\"x\":10,\"y\":10,\"w\":100,\"h\":100,\"fill\":\"#123456\",\"rotation\":0.5}]}"}}]},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
+
+data: [DONE]

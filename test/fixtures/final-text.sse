@@ -1,0 +1,11 @@
+data: {"id":"chatcmpl-fx2","object":"chat.completion.chunk","created":2,"model":"deepseek-v4-pro","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"content":"好了，我画了一张"},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"content":"深色底的季度回顾标题页"},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"content":"：顶部一条圆角色块，标题压在左上。"},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: {"choices":[],"usage":{"prompt_tokens":1602,"completion_tokens":41,"total_tokens":1643}}

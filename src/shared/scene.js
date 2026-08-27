@@ -259,6 +259,8 @@
         s.points.push([clamp(+p[0], -1e6, 1e6), clamp(+p[1], -1e6, 1e6)]);
       }
       s.closed = !!raw.closed;
+      // smooth:false = 顶点折线（agent 画三角形/折线图靠这个）；缺省保持画笔的平滑手感
+      s.smooth = raw.smooth !== false;
       if (!s.points.length) return null;
     }
     if (type === 'text') {
@@ -273,6 +275,9 @@
       s.fontFamily = oneOf(raw.fontFamily, FONT_KEYS, 'sans');
       s.textAlign = oneOf(raw.textAlign, TEXT_ALIGNS, 'left');
       s.lineHeight = clamp(num(raw.lineHeight, 1.3), 0.8, 4);
+      // 文本框宽度：>0 表示按这个宽度换行（换行结果由服务端烘成字面 \n），0 表示不限宽。
+      // 必须持久化：否则后续任何一次编辑都会用不同的宽度重排，且手动编辑器也无从得知框宽。
+      s.maxWidth = clamp(num(raw.maxWidth, 0), 0, 1e6);
       s.bold = !!raw.bold;
       s.italic = !!raw.italic;
     }
@@ -286,7 +291,6 @@
       }
       s.src = src;
     }
-    /* __APPEND_5__ */
     return s;
   }
   /**

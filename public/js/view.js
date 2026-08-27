@@ -325,7 +325,6 @@
       ctx.strokeRect(Math.round(a.x) + 0.5, Math.round(a.y) + 0.5, m.w * v.scale, m.h * v.scale);
       ctx.restore();
     }
-    /* __APPEND_5__ */
   }
   var rafId = 0;
   function render() {
@@ -458,6 +457,9 @@
   View.eventToWorld = eventToWorld;
   View.pageRect = pageRect;
   View.fit = fit;
+  // fit() 读的 cssW/cssH 只在 render() 顶部的 resize() 里刷新。
+  // 右侧面板出现/消失后要立刻按新宽度取景时，先调这个再调 fit()。
+  View.refreshSize = resize;
   View.setZoom = setZoom;
   View.panBy = panBy;
   View.selectionFrame = selectionFrame;

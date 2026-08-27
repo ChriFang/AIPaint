@@ -339,6 +339,10 @@
     reader.onload = function () {
       try {
         var warnings = Store.loadScene(JSON.parse(reader.result));
+        // 存档里的文本可能没带 w/h（早期版本、或手写的 JSON），不补的话居中/右对齐
+        // 和旋转中心都按零宽算 —— 和 init() 里补的是同一件事
+        remeasureMissingTexts();
+        Store.commit();
         View.fit();
         status('已导入场景' + (warnings.length ? '（' + warnings.length + ' 条提示：' + warnings[0] + '）' : ''), 'ok');
       } catch (err) {
@@ -561,6 +565,9 @@
     sync: sync,
     status: status,
     pickImage: pickImage,
+    // agent.js 应用完场景后要补量文字尺寸：只补缺的，绝不全量重测 ——
+    // 服务端烘焙过的尺寸才是导出用的那一份，用浏览器度量覆盖它就把导出弄错了
+    remeasureMissingTexts: remeasureMissingTexts,
     doExport: doExport
   };
 

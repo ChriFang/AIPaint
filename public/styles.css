@@ -299,4 +299,200 @@ kbd {
   .props { width: 210px; }
   .tool .cap { display: none; }
   .toolbar { width: 46px; }
+  .chat { width: 300px; }
 }
+
+/* ---------- AI 会话面板 ---------- */
+.chat {
+  flex: 0 0 auto;
+  width: 360px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-2);
+  border-left: 1px solid var(--line);
+}
+.chat-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+.chat-title { flex: 1 1 auto; font-weight: 600; }
+.chat-head button { height: 26px; font-size: 12px; }
+.chat-log {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* 聊天内容一律走 textContent + pre-wrap：不引 markdown 库，从构造上没有 XSS */
+.msg {
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 10px;
+  padding: 7px 9px;
+  max-width: 100%;
+}
+.msg-u { align-self: flex-end; background: var(--accent-soft); border: 1px solid var(--accent); }
+.msg-a { background: var(--panel); border: 1px solid var(--line); }
+.msg-s { color: var(--text-dim); font-size: 12px; padding: 0 2px; }
+.msg-s.tool::before { content: '▸ '; }
+.msg-e { color: #ff9d99; background: #3a2321; border: 1px solid #6d3b39; }
+.msg-e button { margin-top: 6px; height: 24px; font-size: 12px; }
+.msg-note { color: #ffd9a8; font-size: 12px; padding: 0 2px; }
+.msg-a.streaming::after {
+  content: '▍';
+  color: var(--accent);
+}
+/* 临时的阶段提示：有正文之后 agent.js 会把这个节点删掉，所以只需要看起来「在进行中」 */
+.msg-s.phase { opacity: 0.85; }
+.msg-s.phase::before { content: '⋯ '; }
+
+/* 思考过程。限高是关键：长思考在 360px 宽的面板里是一整屏墙，
+   限高 + 可折叠之后正文和工具动作才留在视野里 */
+.think {
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 5px 8px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.think > summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.think > summary::-webkit-details-marker { display: none; }
+.think > summary::before { content: '▾ '; }
+.think:not([open]) > summary::before { content: '▸ '; }
+.think-body {
+  margin-top: 5px;
+  padding-top: 5px;
+  max-height: 150px;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.55;
+}
+.chat-composer {
+  flex: 0 0 auto;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--line);
+}
+.chat-composer textarea {
+  width: 100%;
+  resize: none;
+  font: inherit;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 7px 8px;
+  outline: none;
+}
+.chat-composer textarea:focus { border-color: var(--accent); }
+.chat-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.chat-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: auto;
+  padding: 2px 0;
+  text-align: left;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  background: none;
+  border: none;
+  border-radius: 0;
+}
+.chat-hint:hover { background: none; color: var(--text); text-decoration: underline; }
+/* 没配 key 的时候这行是唯一的求助入口，得看起来像能点 */
+.chat-hint.warn { color: #ffb4ae; text-decoration: underline; }
+
+/* AI 模式：只用 CSS 隐藏，节点一个都不能删 —— ui.js 在注册监听之前无保护地取
+   约 35 个 id，缺一个就抛出 init()，结果是一个没有任何监听的死画布。
+   [hidden] 敌不过 .toolbar/.props 的 display:flex，所以这里必须显式 display:none。 */
+.app.ai-mode .toolbar,
+.app.ai-mode .props { display: none; }
+.app:not(.ai-mode) .chat { display: none; }
+
+/* 生成中：一条 CSS 规则从构造上消灭「AI 在画 + 用户在改」的竞态 */
+.app.ai-busy .stage { pointer-events: none; }
+.app.ai-busy .stage::after {
+  content: 'AI 正在绘制…（停止后可继续手动编辑）';
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 18px;
+  background: rgba(20, 23, 28, 0.35);
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+/* ---------- 模型配置浮层 ---------- */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(10, 12, 15, 0.62);
+}
+/* 和 .toolbar/.props 一样：[hidden] 敌不过 display:flex，必须显式写回来 */
+.modal[hidden] { display: none; }
+.modal-card {
+  width: min(440px, 100%);
+  box-sizing: border-box;
+  padding: 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+}
+.modal-card h3 { margin: 0 0 12px; font-size: 14px; }
+.field { display: block; margin-bottom: 10px; color: var(--text-dim); font-size: 12px; }
+.field input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 5px;
+  height: 32px;
+  padding: 0 9px;
+  font: inherit;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: text;
+}
+.field input:focus { border-color: var(--accent); outline: none; }
+.modal-note {
+  margin: 0 0 12px;
+  min-height: 17px;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.modal-note.err { color: #ff9d99; }
+.modal-note.ok { color: #86e5a4; }
+.modal-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+/* 按钮不许被挤到换行：文案短，宽度就该由文案说 */
+.modal-actions button { flex: 0 0 auto; height: 28px; font-size: 12px; white-space: nowrap; }
+

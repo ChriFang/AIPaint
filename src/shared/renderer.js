@@ -97,17 +97,22 @@
     ctx.setLineDash([]);
     ctx.fill();
   }
-  /** 自由画笔：用二次贝塞尔在相邻点中点之间过渡，得到顺滑的手绘线 */
-  function drawFreehand(ctx, pts, closed) {
+  /**
+   * 路径描边。smooth !== false 时用二次贝塞尔在相邻点中点之间过渡，得到顺滑的手绘线；
+   * smooth === false 时逐点 lineTo，点就是顶点 —— 三角形、折线图、非正交连接线需要这个，
+   * 且这也是 view.js 的 hit-test（distToSegment）一直假设的形状。
+   */
+  function drawFreehand(ctx, pts, closed, smooth) {
     ctx.beginPath();
+    if (!pts || !pts.length) return;
     if (pts.length === 1) {
       ctx.moveTo(pts[0][0], pts[0][1]);
       ctx.lineTo(pts[0][0] + 0.01, pts[0][1]);
       return;
     }
     ctx.moveTo(pts[0][0], pts[0][1]);
-    if (pts.length === 2) {
-      ctx.lineTo(pts[1][0], pts[1][1]);
+    if (smooth === false || pts.length === 2) {
+      for (var j = 1; j < pts.length; j++) ctx.lineTo(pts[j][0], pts[j][1]);
     } else {
       for (var i = 1; i < pts.length - 1; i++) {
         var mx = (pts[i][0] + pts[i + 1][0]) / 2;
@@ -226,7 +231,7 @@
         if (shape.type === 'arrow') drawArrowHead(ctx, shape);
         break;
       case 'path':
-        drawFreehand(ctx, shape.points || [], shape.closed);
+        drawFreehand(ctx, shape.points || [], shape.closed, shape.smooth);
         if (isVisible(shape.fill)) { ctx.fillStyle = shape.fill; ctx.fill(); }
         if (isVisible(shape.stroke) && ctx.lineWidth > 0) { ctx.strokeStyle = shape.stroke; ctx.stroke(); }
         break;

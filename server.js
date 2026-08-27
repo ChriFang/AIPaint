@@ -4,6 +4,15 @@
  */
 'use strict';
 
+// .env 默认就读，启动脚本里不用再挂 --env-file。
+// shell 里已经有的变量优先级更高（process.loadEnvFile 的语义就是这样），
+// 所以临时 `DEEPSEEK_API_KEY=... npm run dev` 依然能盖掉文件里的值。
+try {
+  process.loadEnvFile();
+} catch (err) {
+  if (err && err.code !== 'ENOENT') console.warn('[env] .env 读取失败：' + err.message);
+}
+
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
@@ -147,6 +156,8 @@ app.use(express.json({ limit: '24mb' }));
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 // 前端与服务端共用同一份模型和渲染器
 app.use('/shared', express.static(path.join(__dirname, 'src', 'shared')));
+// agent 端点。注入 FONT_SETUP.fonts：文字断行必须用和导出完全相同的度量
+app.use(require('./src/agent/routes.js').create({ fonts: FONT_SETUP.fonts }));
 
 app.get('/api/health', (req, res) => {
   res.json({
