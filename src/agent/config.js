@@ -7,6 +7,9 @@
  */
 
 const DEFAULT_MODEL = 'deepseek-v4-pro';
+// 只有这个模型收图片；主模型收到 image_url 会直接 400。所以它只用在「看图」那一次
+// 辅助调用上，画图始终由 model 做 —— 版面质量是这套设计的全部价值，不能拿它换看图能力。
+const DEFAULT_VISION_MODEL = 'deepseek-v4-flash-vision-exp';
 const DEFAULT_BASE_URL = 'https://api.deepseek.com';
 const EFFORTS = ['low', 'medium', 'high'];
 
@@ -27,6 +30,9 @@ function load() {
   return {
     apiKey: process.env.DEEPSEEK_API_KEY || '',
     model: process.env.DEEPSEEK_MODEL || DEFAULT_MODEL,
+    // 设成空串就彻底关掉看图那一次调用（上传的图仍然能当素材摆进画布）
+    visionModel: process.env.DEEPSEEK_VISION_MODEL === undefined
+      ? DEFAULT_VISION_MODEL : process.env.DEEPSEEK_VISION_MODEL,
     baseUrl: (process.env.DEEPSEEK_BASE_URL || fallbackBase).replace(/\/+$/, ''),
     strict: strict,
     maxRounds: intEnv('AGENT_MAX_ROUNDS', 8, 1, 24),
@@ -45,7 +51,10 @@ function load() {
   };
 }
 
-/** 给浏览器的配置：只有面板需要的几项，没有 key，也没有 baseUrl */
+/**
+ * 给浏览器的配置：只有面板需要的几项，没有 key，也没有 baseUrl。
+ * visionModel 刻意不在这里 —— 面板不需要知道看图的是谁，少一个字段就少一个泄露面。
+ */
 function publicConfig(cfg) {
   return {
     model: cfg.model,
@@ -58,4 +67,4 @@ function publicConfig(cfg) {
   };
 }
 
-module.exports = { load, publicConfig, DEFAULT_MODEL, DEFAULT_BASE_URL };
+module.exports = { load, publicConfig, DEFAULT_MODEL, DEFAULT_VISION_MODEL, DEFAULT_BASE_URL };

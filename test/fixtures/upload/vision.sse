@@ -1,0 +1,15 @@
+data: {"id":"chatcmpl-vis1","object":"chat.completion.chunk","created":0,"model":"deepseek-v4-flash-vision-exp","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"content":"up1：一枝樱花的特写照片，主体清楚、右侧留白多，"},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"content":"适合当海报主图。主色调 #f4d7e3（背景粉白）、"},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"content":"#8c3f5d（花瓣深色，可作强调色）、#3f5d3f。"},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"content":"版式上元素集中在左三分之二，视觉重心偏左下；图内没有文字。"},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: {"choices":[],"usage":{"prompt_tokens":402,"completion_tokens":96,"total_tokens":498}}
+
+data: [DONE]

@@ -151,8 +151,8 @@ async function renderToBuffer(rawScene, options) {
 }
 const app = express();
 
-// 场景里可能内联 base64 图片，所以 body 上限放宽，但仍然有界
-app.use(express.json({ limit: '24mb' }));
+// 场景里可能内联 base64 图片，agent 请求还会再叠上附件，所以 body 上限放宽，但仍然有界
+app.use(express.json({ limit: '32mb' }));
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 // 前端与服务端共用同一份模型和渲染器
 app.use('/shared', express.static(path.join(__dirname, 'src', 'shared')));

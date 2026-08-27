@@ -299,6 +299,195 @@
     hint(parts.join(' · '));
   }
 
+  /* ---------- 附件 ---------- */
+
+  /**
+   * 附件有两个互不相干的用途，别把它们混成一件事：
+   *  - 图片会被服务端注册成一个新的 srcRef（up1、up2…），于是模型能把它摆进画布 ——
+   *    这是「AI 画的图里能有真实照片」的唯一途径；
+   *  - 文本会被拼进这一轮的提示，当资料用。
+   * 两者都只跟着这一次请求走：发出去就清空，不在会话里累积。
+   */
+  var MAX_ATTS = 4;
+  var MAX_IMG_CHARS = 3 * 1024 * 1024;    // 压缩后的 data URL，和服务端那道校验同一个数
+  var MAX_DOC_CHARS = 12000;
+  var NO_TEXT_RE = /\.(pdf|docx?|xlsx?|pptx?|zip|rar|7z)$/i;
+
+  var att = {};          // 附件相关节点。缺了只关掉这个功能，面板照常能用
+  var attOk = false;
+  var atts = [];         // 当前挂着的附件，最多 MAX_ATTS 个
+
+  function isImage(file) { return /^image\//.test(file.type || ''); }
+
+  /** 二进制当文本读出来是一屏乱码，还会白烧 token。NUL 和控制字符是最省事的判据 */
+  function looksBinary(text) {
+    return /[\u0000-\u0008\u000e-\u001f]/.test(text.slice(0, 2000));
+  }
+
+  /** 压缩规则和「为什么一律重编码」都在 imagefile.js 里；这儿只把它拼成协议要的形状 */
+  function readImage(file) {
+    return global.ImageFile.downscale(file).then(function (out) {
+      if (out.dataUrl.length > MAX_IMG_CHARS) {
+        throw new Error('压到 ' + out.w + '×' + out.h + ' 还是太大，请先自己压一下');
+      }
+      return {
+        kind: 'image', name: file.name || '图片', mime: out.mime,
+        dataUrl: out.dataUrl, w: out.w, h: out.h
+      };
+    });
+  }
+
+  function readDoc(file) {
+    return new Promise(function (resolve, reject) {
+      if (NO_TEXT_RE.test(file.name || '')) {
+        reject(new Error('PDF / Word / Excel 这类格式读不了，先另存成 .txt 或 .md'));
+        return;
+      }
+      var reader = new global.FileReader();
+      reader.onerror = function () { reject(new Error('读不出这个文件')); };
+      reader.onload = function () {
+        var raw = String(reader.result || '');
+        if (!raw.trim()) { reject(new Error('文件是空的')); return; }
+        if (looksBinary(raw)) { reject(new Error('这看起来不是纯文本文件')); return; }
+        var cut = raw.length > MAX_DOC_CHARS;
+        resolve({
+          kind: 'text', name: file.name || '文件', mime: file.type || 'text/plain',
+          text: cut ? raw.slice(0, MAX_DOC_CHARS) : raw, truncated: cut
+        });
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  async function addFiles(list) {
+    if (!attOk || run || !list) return;
+    var files = [];
+    for (var i = 0; i < list.length; i++) files.push(list[i]);
+    for (var j = 0; j < files.length; j++) {
+      var f = files[j];
+      if (atts.length >= MAX_ATTS) { note('附件最多 ' + MAX_ATTS + ' 个，剩下的没加上。'); break; }
+      // 上限跟压缩器共用一个数：图片和文本都在读之前先拦一道，别让 40MB 进 FileReader
+      var cap = global.ImageFile.MAX_SRC_BYTES;
+      if (f.size > cap) {
+        note(f.name + '：文件太大（' + (f.size / 1048576).toFixed(1) + 'MB），上限 ' +
+          (cap / 1048576) + 'MB。');
+        continue;
+      }
+      try {
+        atts.push(await (isImage(f) ? readImage(f) : readDoc(f)));
+      } catch (err) {
+        note((f.name || '附件') + '：' + (err && err.message ? err.message : String(err)));
+      }
+      renderAtts();
+    }
+    renderAtts();
+  }
+
+  function dropAtt(a) {
+    var i = atts.indexOf(a);
+    if (i >= 0) atts.splice(i, 1);
+    renderAtts();
+  }
+
+  function chip(a) {
+    var box = global.document.createElement('span');
+    box.className = 'chat-att';
+    var name = global.document.createElement('span');
+    name.className = 'name';
+    name.textContent = a.name;
+    var meta = global.document.createElement('span');
+    meta.className = 'meta';
+    meta.textContent = a.kind === 'image'
+      ? a.w + '×' + a.h
+      : (a.truncated ? '前 ' + a.text.length + ' 字' : a.text.length + ' 字');
+    var x = global.document.createElement('button');
+    x.type = 'button';
+    x.textContent = '×';
+    x.title = '移除';
+    x.disabled = !!run;
+    x.addEventListener('click', function () { dropAtt(a); });
+    box.appendChild(name);
+    box.appendChild(meta);
+    box.appendChild(x);
+    return box;
+  }
+
+  /** 整条重画。附件最多 4 个，没有增量更新的必要 */
+  function renderAtts() {
+    if (!attOk) return;
+    while (att.strip.firstChild) att.strip.removeChild(att.strip.firstChild);
+    for (var i = 0; i < atts.length; i++) att.strip.appendChild(chip(atts[i]));
+    att.strip.hidden = atts.length === 0;
+    var full = atts.length >= MAX_ATTS;
+    att.plus.disabled = !!run || full;
+    att.plus.title = full ? '附件已达上限（' + MAX_ATTS + ' 个）' : '添加文件和工具';
+    if (att.plus.disabled) closeMenu();
+  }
+
+  function openMenu() { if (attOk && !att.plus.disabled) att.menu.hidden = false; }
+  function closeMenu() { if (attOk) att.menu.hidden = true; }
+
+  function pick(input) {
+    closeMenu();
+    input.click();
+  }
+
+  /**
+   * 附件是可选功能：节点缺了就只把 ＋ 藏掉，面板照常能用。
+   * 不把这些 id 塞进 els —— init() 那句 `for (var k in els) if (!els[k]) return;` 是全有全无的，
+   * 往里加一个 id 就等于给整个面板加一个新的静默失效条件。
+   */
+  function initAtts() {
+    att = {
+      strip: $('chat-atts'), plus: $('btn-chat-plus'), menu: $('chat-menu'),
+      mImg: $('btn-att-image'), mDoc: $('btn-att-doc'),
+      fImg: $('file-chat-image'), fDoc: $('file-chat-doc')
+    };
+    attOk = true;
+    for (var a in att) if (!att[a]) attOk = false;
+    if (!global.ImageFile) attOk = false;   // 压缩器没加载上，图片这条路就是断的
+    if (!attOk) {
+      if (att.plus) att.plus.hidden = true;
+      return;
+    }
+
+    att.plus.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      if (att.menu.hidden) openMenu(); else closeMenu();
+    });
+    att.mImg.addEventListener('click', function () { pick(att.fImg); });
+    att.mDoc.addEventListener('click', function () { pick(att.fDoc); });
+    // value 每次都要清掉，否则连着选同一个文件不会再触发 change
+    att.fImg.addEventListener('change', function () { addFiles(att.fImg.files); att.fImg.value = ''; });
+    att.fDoc.addEventListener('change', function () { addFiles(att.fDoc.files); att.fDoc.value = ''; });
+    // 点别处收起来。＋ 自己的 click 已经 stopPropagation，所以不会开完立刻被关掉
+    global.document.addEventListener('click', function () { closeMenu(); });
+    att.plus.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape') { ev.stopPropagation(); closeMenu(); }
+    });
+
+    // 两个零成本入口。剪贴板里有图就当上传：截图 → ⌘V 是最顺的一条路
+    els.input.addEventListener('paste', function (ev) {
+      var files = ev.clipboardData && ev.clipboardData.files;
+      if (!files || !files.length) return;
+      var imgs = [];
+      for (var i = 0; i < files.length; i++) if (isImage(files[i])) imgs.push(files[i]);
+      if (!imgs.length) return;
+      ev.preventDefault();
+      addFiles(imgs);
+    });
+    els.panel.addEventListener('dragover', function (ev) { ev.preventDefault(); });
+    els.panel.addEventListener('drop', function (ev) {
+      var files = ev.dataTransfer && ev.dataTransfer.files;
+      if (!files || !files.length) return;
+      ev.preventDefault();
+      addFiles(files);
+    });
+
+    closeMenu();     // 标记里就是 hidden 的，这儿只是把它当不变式钉住
+    renderAtts();
+  }
+
   /* ---------- 发送 ---------- */
 
   var DOC_BTNS = ['undo', 'redo', 'btn-clear', 'btn-import-json'];
@@ -317,10 +506,11 @@
     els.stop.disabled = false;
     els.send.disabled = on || !cfg.hasApiKey;
     lockDoc(on);
+    renderAtts();                                                // 生成期间不许改附件
     if (!on && global.UI && global.UI.sync) global.UI.sync();   // 把撤销键的状态交还给 ui.js
   }
 
-  async function send(text) {
+  async function send(text, files) {
     if (run) return;
     var controller = new global.AbortController();
     run = {
@@ -330,6 +520,7 @@
     };
     guard = stamp();
     msg('msg msg-u', text);
+    if (files.length) sys('附件：' + files.map(function (a) { return a.name; }).join('、'));
     setBusy(true);
     try {
       var res = await global.fetch('/api/agent', {
@@ -340,7 +531,8 @@
           text: text,
           baseRevision: revision,
           selection: Store.state.selection.slice(),
-          scene: Store.state.scene
+          scene: Store.state.scene,
+          attachments: files
         }),
         signal: controller.signal
       });
@@ -366,7 +558,11 @@
 
   function submit() {
     var text = els.input.value.trim();
-    if (!text || run) return;
+    if (run) return;
+    if (!text) {
+      if (atts.length) note('说一句要用这些附件做什么，再发送。');
+      return;
+    }
     // 发送键这时候是灰的，但 Enter 走的是这条路，所以拦一次并顺手把配置弹出来
     if (!cfg.hasApiKey) {
       askForKey('还没配置模型 API key，先填一下。');
@@ -374,7 +570,11 @@
       return;
     }
     els.input.value = '';
-    send(text);
+    // 附件只跟着这一次请求走。和输入框同时清空：语义一致，也不会在下一轮被重复计费
+    var files = atts.slice();
+    atts.length = 0;
+    renderAtts();
+    send(text, files);
   }
 
   /* ---------- 模式切换 ---------- */
@@ -577,6 +777,8 @@
       // 输入法组合期间的 Enter 是在选字，不能当发送
       if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); submit(); }
     });
+
+    initAtts();
 
     var saved = null;
     try { saved = global.localStorage.getItem(MODE_KEY); } catch (err) { saved = null; }

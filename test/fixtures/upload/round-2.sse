@@ -1,0 +1,11 @@
+data: {"id":"chatcmpl-up2","object":"chat.completion.chunk","created":2,"model":"deepseek-v4-pro","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"content":"把你传的图放在上方，"},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"content":"下面压了一行春日新品的标题。"},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: {"choices":[],"usage":{"prompt_tokens":1620,"completion_tokens":38,"total_tokens":1658}}
+
+data: [DONE]

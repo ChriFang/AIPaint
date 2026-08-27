@@ -354,38 +354,39 @@
 
   function pickImage() { $('file-image').click(); }
 
-  /** 图片以 data URL 内联进场景，这样导出时服务端不需要访问外部地址 */
+  /**
+   * 图片以 data URL 内联进场景，这样导出时服务端不需要访问外部地址。
+   * 走共用的压缩器（imagefile.js）而不是原始字节：整个场景每次 commit 都会被写进
+   * localStorage，几 MB 的原图能直接把 5MB 配额撑破，而 store.js 的 persist 是静默失败的
+   * —— 那种「改了半小时刷新之后全没了」的丢工作，从这里就该掐掉。
+   */
   function insertImageFile(file, atWorldPoint) {
     if (!file) return;
-    var reader = new global.FileReader();
-    reader.onload = function () {
-      var src = String(reader.result);
-      if (src.length > M.LIMITS.maxImageChars) {
-        status('图片太大（' + (src.length / 1048576).toFixed(1) + 'MB），请先压缩', 'err');
+    global.ImageFile.downscale(file).then(function (out) {
+      if (out.dataUrl.length > M.LIMITS.maxImageChars) {
+        status('图片太大（' + (out.dataUrl.length / 1048576).toFixed(1) + 'MB），请先压缩', 'err');
         return;
       }
-      var img = new global.Image();
-      img.onload = function () {
-        var scene = Store.state.scene;
-        var maxW = scene.width * 0.6, maxH = scene.height * 0.6;
-        var k = Math.min(1, maxW / img.naturalWidth, maxH / img.naturalHeight);
-        var w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
-        var center = atWorldPoint || View.screenToWorld({ x: View.size().w / 2, y: View.size().h / 2 });
-        Store.addShape(M.createShape('image', {
-          src: src,
-          x: Math.round(center.x - w / 2),
-          y: Math.round(center.y - h / 2),
-          w: w, h: h,
-          stroke: 'transparent',
-          fill: 'transparent'
-        }));
-        Store.setTool('select');
-        status('已插入图片 ' + img.naturalWidth + '×' + img.naturalHeight, 'ok');
-      };
-      img.onerror = function () { status('图片读取失败', 'err'); };
-      img.src = src;
-    };
-    reader.readAsDataURL(file);
+      var scene = Store.state.scene;
+      var maxW = scene.width * 0.6, maxH = scene.height * 0.6;
+      var k = Math.min(1, maxW / out.w, maxH / out.h);
+      var w = Math.round(out.w * k), h = Math.round(out.h * k);
+      var center = atWorldPoint || View.screenToWorld({ x: View.size().w / 2, y: View.size().h / 2 });
+      Store.addShape(M.createShape('image', {
+        src: out.dataUrl,
+        x: Math.round(center.x - w / 2),
+        y: Math.round(center.y - h / 2),
+        w: w, h: h,
+        stroke: 'transparent',
+        fill: 'transparent'
+      }));
+      Store.setTool('select');
+      var shrank = out.w !== out.srcW;
+      status('已插入图片 ' + out.srcW + '×' + out.srcH +
+        (shrank ? '（已压到 ' + out.w + '×' + out.h + '）' : ''), 'ok');
+    }, function (err) {
+      status(err && err.message ? err.message : '图片读取失败', 'err');
+    });
   }
   /* ---------------- 状态 → 界面 ---------------- */
 

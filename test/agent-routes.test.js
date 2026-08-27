@@ -110,6 +110,48 @@ test('参数校验：缺 text / 缺 scene / sessionId 非法都是 400', async (
   assert.equal(big.status, 400);
 });
 
+/** 一张合法的假图：正则要的是 base64 字符集，不解码，所以内容无所谓 */
+function img(extra) {
+  return Object.assign({
+    kind: 'image', name: 'ref.png', mime: 'image/jpeg',
+    dataUrl: 'data:image/jpeg;base64,JJJJ==', w: 1600, h: 900
+  }, extra || {});
+}
+
+test('附件校验：每条规则各一个 400，且这个端点宁可拒绝也不静默丢弃', async () => {
+  const cases = [
+    ['不是数组', { attachments: {} }],
+    ['超过 4 个', { attachments: [img(), img(), img(), img(), img()] }],
+    ['kind 非法', { attachments: [img({ kind: 'audio' })] }],
+    ['name 空', { attachments: [img({ name: '  ' })] }],
+    ['name 过长', { attachments: [img({ name: 'a'.repeat(201) })] }],
+    ['dataUrl 不是图片', { attachments: [img({ dataUrl: 'data:text/html;base64,AAAA' })] }],
+    ['dataUrl 不是 base64', { attachments: [img({ dataUrl: 'https://example.com/a.png' })] }],
+    ['gif 也不收', { attachments: [img({ dataUrl: 'data:image/gif;base64,AAAA' })] }],
+    ['图片过大', { attachments: [img({ dataUrl: 'data:image/jpeg;base64,' + 'J'.repeat(3 * 1024 * 1024) })] }],
+    ['缺尺寸', { attachments: [img({ w: undefined })] }],
+    ['尺寸不是整数', { attachments: [img({ h: 900.5 })] }],
+    ['尺寸越界', { attachments: [img({ w: 8193 })] }],
+    ['文本为空', { attachments: [{ kind: 'text', name: 'a.md', text: '' }] }],
+    ['文本过长', { attachments: [{ kind: 'text', name: 'a.md', text: 'x'.repeat(12001) }] }]
+  ];
+  for (const [why, extra] of cases) {
+    const res = await post(body(extra));
+    assert.equal(res.status, 400, why + ' 应该是 400');
+    assert.ok((await res.json()).error, why + ' 得说明理由');
+  }
+});
+
+test('不带 attachments 的请求行为一个字节都没变', async () => {
+  for (const extra of [{}, { attachments: [] }, { attachments: null }]) {
+    const res = await post(body(extra));
+    assert.equal(res.status, 200, JSON.stringify(extra));
+    const names = parseSSE(await res.text()).map((e) => e.event);
+    assert.equal(names[0], 'open');
+    assert.equal(names[names.length - 1], 'done');
+  }
+});
+
 test('同一会话单飞：正在跑的时候再来一次是 409', async () => {
   SESSION.begin('sess-busy-0001');
   try {

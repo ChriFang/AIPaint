@@ -79,7 +79,7 @@
     italic: { t: 'boolean', def: false },
     lineHeight: { t: 'number', min: 0.8, max: 4, def: 1.3 },
 
-    srcRef: { t: 'string', max: 64, req: true, desc: '图片句柄，只能用场景清单里已有的 srcRef；你无法引入新图片' }
+    srcRef: { t: 'string', max: 64, req: true, desc: '图片句柄，只能用画布清单里列出的 srcRef（含用户刚上传的）；你无法自己生成图片数据' }
   };
 
   var BOX = ['x', 'y', 'w', 'h'];
@@ -755,6 +755,39 @@
     return scene;
   }
 
+  /**
+   * 把用户这一轮上传的图片挂进同一套句柄机制，于是它成为「可放置的素材」。
+   *
+   * 这是模型唯一能得到新图片的途径，而且刻意只走这一条：三道 srcRef 闸门
+   * （normalizeShape 的 unknown_ref、opUpdate 的 patch.srcRef、finalize 的
+   * validateScene）判据全是 srcRefs 这张表，所以「注册了才能用」是构造上的，
+   * 不是靠约定 —— 模型编一个 srcRef 出来照样被拒。
+   *
+   * 命名用 up1..upN：stripImageSrc 占的是 img1..imgN，两个前缀不会撞，
+   * 而 refFromSrc 只要求 [A-Za-z0-9]+，upN 落在里面。
+   *
+   * 原地改 stripped（stripImageSrc 的返回值）。返回值给提示层用：
+   * 上传图不在场景里，模型没有别的地方能知道它的名字和原始尺寸。
+   */
+  function registerUploads(stripped, uploads) {
+    var out = [];
+    var list = Array.isArray(uploads) ? uploads : [];
+    for (var i = 0; i < list.length; i++) {
+      var up = list[i];
+      if (!up || up.kind !== 'image' || typeof up.dataUrl !== 'string' || !up.dataUrl) continue;
+      // 避让已经占掉的句柄：场景里可能本来就带着 AIPaintRefup1 这样的占位符
+      // （导入的 JSON、或上一轮因缺 srcUrls 而没能还原的那张），撞上去就会把画布上
+      // 那个位置的图偷偷换成用户刚传的
+      var k = out.length;
+      var ref;
+      do { k += 1; ref = 'up' + k; } while (stripped.srcRefs[ref]);
+      stripped.srcRefs[ref] = REF_PREFIX + ref;
+      stripped.srcUrls[ref] = up.dataUrl;
+      out.push({ ref: ref, name: String(up.name || '图片'), w: Number(up.w) || 0, h: Number(up.h) || 0 });
+    }
+    return out;
+  }
+
   var MAX_LISTED = 120;
 
   function fmt(n) { return String(Math.round(n * 10) / 10); }
@@ -791,8 +824,26 @@
     if (!n) lines.push('  （空白画布）');
     for (var i = 0; i < Math.min(n, MAX_LISTED); i++) lines.push('  ' + describeShape(scene.shapes[i], i));
     if (n > MAX_LISTED) lines.push('  …还有 ' + (n - MAX_LISTED) + ' 个未列出，需要时先调 get_scene');
-    var refs = Object.keys(o.srcRefs || {});
-    if (refs.length) lines.push('可用图片 srcRef：' + refs.join(', ') + '（只能引用这些，你无法引入新图片）');
+    var ups = o.uploads || [];
+    var upSet = {};
+    for (var u = 0; u < ups.length; u++) upSet[ups[u].ref] = true;
+    var refs = [];
+    var all = Object.keys(o.srcRefs || {});
+    for (var r = 0; r < all.length; r++) if (!upSet[all[r]]) refs.push(all[r]);
+    if (refs.length) lines.push('画布里已有的图片 srcRef：' + refs.join(', '));
+    if (ups.length) {
+      var parts = [];
+      for (var v = 0; v < ups.length; v++) {
+        var up = ups[v];
+        // 宽高比这儿就算好：版面算术是这套「盲画」设计的已知弱项，能替它算的都替它算
+        var wh = up.w && up.h ? '，' + up.w + '×' + up.h + ' 像素，宽高比 ' + fmt(up.w / up.h) : '';
+        parts.push(up.ref + '（' + clip(up.name, 40) + wh + '）');
+      }
+      // 上传图不在场景里，所以尺寸得在这儿给：模型只能靠它算长宽比
+      lines.push('用户刚上传、还没放进画布的图片：' + parts.join('、'));
+      lines.push('  想用就 add 一个 image 并给 srcRef=对应句柄，w/h 按上面的宽高比定，别拉变形。');
+    }
+    if (refs.length || ups.length) lines.push('srcRef 只能用上面列出的这些，你无法自己生成图片数据。');
     if (o.selection && o.selection.length) {
       lines.push('用户当前选中：' + o.selection.join(', ') + '（用户说「这个」「它」时优先指这些）');
     }
@@ -1076,6 +1127,7 @@
 
     stripImageSrc: stripImageSrc,
     restoreImageSrc: restoreImageSrc,
+    registerUploads: registerUploads,
     refFromSrc: refFromSrc
   };
 });

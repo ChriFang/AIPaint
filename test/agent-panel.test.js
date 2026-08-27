@@ -14,14 +14,19 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const CODE = fs.readFileSync(path.resolve(__dirname, '../public/js/agent.js'), 'utf8');
+// imagefile.js 在真页面里排在 agent.js 之前（ui.js 的插图也用它）。
+// 两个都是挂 window 的 IIFE，所以拼起来跑和分两个 <script> 等价。
+const HELPER = fs.readFileSync(path.resolve(__dirname, '../public/js/imagefile.js'), 'utf8');
 
 function makeEl(tag) {
   const el = {
     tagName: tag, className: '', textContent: '', hidden: false, disabled: false,
     type: '', title: '', value: '', placeholder: '', childNodes: [], handlers: {},
-    focused: false,
+    focused: false, files: null, clicks: 0,
     scrollHeight: 100, scrollTop: 100, clientHeight: 100,
     focus() { el.focused = true; },
+    // 真 DOM 的 click() 会同步跑一遍监听器；附件那两个隐藏 input 就靠它被触发
+    click() { el.clicks += 1; el.fire('click'); },
     addEventListener(name, fn) { (el.handlers[name] = el.handlers[name] || []).push(fn); },
     appendChild(child) { child.parentNode = el; el.childNodes.push(child); return child; },
     removeChild(child) {
@@ -33,7 +38,7 @@ function makeEl(tag) {
     get firstChild() { return el.childNodes[0] || null; },
     fire(name, ev) {
       const list = el.handlers[name] || [];
-      for (const fn of list) fn(Object.assign({ preventDefault() {}, stopPropagation() {} }, ev || {}));
+      for (const fn of list) fn.call(el, Object.assign({ preventDefault() {}, stopPropagation() {} }, ev || {}));
     }
   };
   el.classList = {
@@ -46,10 +51,48 @@ function makeEl(tag) {
   return el;
 }
 
+/**
+ * canvas 只有两件事被用到：drawImage（缩放）和 toDataURL（重编码）。
+ * 两种格式给不同长度的假字节，于是「PNG 和 JPEG 各编一次取小的」那条分支是真的被走过的。
+ */
+function makeCanvas() {
+  const cv = makeEl('canvas');
+  cv.width = 0;
+  cv.height = 0;
+  cv.getContext = () => ({ drawImage(img, x, y, w, h) { cv.drew = [w, h]; } });
+  cv.toDataURL = (mime, q) => {
+    const n = Math.max(4, Math.round(cv.width * cv.height / 100));
+    return mime === 'image/jpeg'
+      ? 'data:image/jpeg;base64,' + 'J'.repeat(n) + '=='
+      : 'data:image/png;base64,' + 'P'.repeat(n * 3) + '==';
+  };
+  return cv;
+}
+
+/** 测试用的假 File。宽高编进 data URL，于是它走的是和真代码一样的那条路 */
+function fakeFile(o) {
+  return {
+    name: o.name, type: o.type || '', size: o.size == null ? 1024 : o.size,
+    __url: 'data:' + (o.type || 'image/png') + ';base64,IMG' + (o.w || 0) + 'x' + (o.h || 0),
+    __text: o.text == null ? '' : o.text,
+    __failRead: Boolean(o.failRead)
+  };
+}
+
+function imageFile(name, w, h, size) {
+  return fakeFile({ name: name, type: 'image/png', w: w, h: h, size: size });
+}
+
+function textFile(name, text, type) {
+  return fakeFile({ name: name, type: type || 'text/plain', text: text });
+}
+
 const IDS = ['chat-panel', 'chat-log', 'chat-form', 'chat-input', 'chat-send', 'chat-hint',
   'btn-agent-stop', 'btn-mode-toggle', 'undo', 'redo', 'btn-clear', 'btn-import-json',
   'btn-agent-settings', 'agent-settings', 'cfg-form', 'cfg-base-url', 'cfg-api-key',
-  'cfg-note', 'cfg-cancel', 'cfg-save'];
+  'cfg-note', 'cfg-cancel', 'cfg-save',
+  'chat-atts', 'btn-chat-plus', 'chat-menu', 'btn-att-image', 'btn-att-doc',
+  'file-chat-image', 'file-chat-doc'];
 
 const DEFAULT_BASE = 'https://api.deepseek.com';
 const KEY_DOTS = '••••••••••••';
@@ -99,6 +142,39 @@ function boot(opts) {
     AbortController: AbortController,
     crypto: { randomUUID() { return 'sess-panel-0001'; } },
     requestAnimationFrame(fn) { setImmediate(fn); },
+    // 附件读取用的两个浏览器 API。agent.js 一律走 global.XXX 就是为了能在这儿换掉
+    FileReader: function FileReader() {
+      const self = this;
+      this.result = null;
+      function deliver(value) {
+        setImmediate(() => {
+          if (value == null) { if (self.onerror) self.onerror(); return; }
+          self.result = value;
+          if (self.onload) self.onload();
+        });
+      }
+      this.readAsDataURL = (file) => deliver(file.__failRead ? null : file.__url);
+      this.readAsText = (file) => deliver(file.__failRead ? null : file.__text);
+    },
+    Image: function Image() {
+      const self = this;
+      this.naturalWidth = 0;
+      this.naturalHeight = 0;
+      let src = '';
+      Object.defineProperty(this, 'src', {
+        get() { return src; },
+        set(v) {
+          src = String(v);
+          const m = /IMG(\d+)x(\d+)$/.exec(src);
+          setImmediate(() => {
+            if (!m) { if (self.onerror) self.onerror(); return; }
+            self.naturalWidth = Number(m[1]);
+            self.naturalHeight = Number(m[2]);
+            if (self.onload) self.onload();
+          });
+        }
+      });
+    },
     localStorage: (function () {
       const map = new Map(Object.entries(options.storage || {}));
       return {
@@ -112,7 +188,7 @@ function boot(opts) {
   const docHandlers = {};
   win.document = {
     getElementById(id) { return els[id] || null; },
-    createElement(tag) { return makeEl(tag); },
+    createElement(tag) { return tag === 'canvas' ? makeCanvas() : makeEl(tag); },
     querySelector(sel) { return sel === '.app' ? appEl : null; },
     addEventListener(name, fn) { docHandlers[name] = fn; }
   };
@@ -145,7 +221,7 @@ function boot(opts) {
     return Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({ error: '没有回放数据' }) });
   };
 
-  vm.runInNewContext(CODE, { window: win, console: console }, { filename: 'agent.js' });
+  vm.runInNewContext(HELPER + '\n' + CODE, { window: win, console: console }, { filename: 'agent.js' });
   // agent.js 排在 ui.js 之后加载，所以它的 DOMContentLoaded 也执行在后
   docHandlers.DOMContentLoaded();
 
@@ -158,7 +234,20 @@ function boot(opts) {
         head: n.childNodes[0].textContent, body: n.childNodes[1].textContent, open: n.open
       }));
     },
-    send(text) { els['chat-input'].value = text; els['chat-form'].fire('submit'); }
+    send(text) { els['chat-input'].value = text; els['chat-form'].fire('submit'); },
+    /** 走真实路径：给隐藏 input 塞 files 再 fire change，和用户在文件对话框里点确定一样 */
+    attach(files, kind) {
+      const input = els[kind === 'doc' ? 'file-chat-doc' : 'file-chat-image'];
+      input.files = files;
+      input.fire('change');
+    },
+    chips() {
+      return els['chat-atts'].childNodes.map((c) => ({
+        name: c.childNodes[0].textContent,
+        meta: c.childNodes[1].textContent,
+        disabled: c.childNodes[2].disabled
+      }));
+    }
   };
 }
 
@@ -632,4 +721,174 @@ test('齿轮按钮和状态行是同一个入口', async () => {
   p.els['btn-agent-settings'].fire('click');
   await settle();
   assert.equal(p.els['agent-settings'].hidden, false);
+});
+
+/* ---------- 附件 ---------- */
+
+test('挂一张图：chip 显示压缩后的尺寸，body 带上 attachments，发出去就清空', async () => {
+  const p = boot({ reply: replyWith(stream(), 8192) });
+  await settle();
+  p.attach([imageFile('ref.png', 4096, 1024)]);
+  await settle();
+
+  assert.deepEqual(p.chips(), [{ name: 'ref.png', meta: '2048×512', disabled: false }],
+    '长边压到 2048，短边等比跟着走');
+  assert.equal(p.els['chat-atts'].hidden, false);
+
+  p.send('用这张图做一张海报');
+  await settle();
+
+  const req = JSON.parse(p.fetches[1].init.body);
+  assert.equal(req.attachments.length, 1);
+  assert.deepEqual(Object.keys(req.attachments[0]).sort(), ['dataUrl', 'h', 'kind', 'mime', 'name', 'w']);
+  assert.equal(req.attachments[0].kind, 'image');
+  assert.equal(req.attachments[0].w, 2048);
+  assert.equal(req.attachments[0].h, 512);
+  assert.equal(req.attachments[0].mime, 'image/jpeg', 'PNG 和 JPEG 各编一次，取小的那个');
+  assert.ok(/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(req.attachments[0].dataUrl),
+    '发上去的必须是我们自己的编码器产出的字节，不是用户的原始文件');
+
+  assert.deepEqual(p.chips(), [], '附件只跟着这一次请求走');
+  assert.equal(p.els['chat-atts'].hidden, true);
+  assert.ok(p.lines().some((l) => l === 'msg msg-s|附件：ref.png'), '日志里要留一条痕迹');
+});
+
+test('不带附件时 body 里是空数组，其余字段一个字节都不变', async () => {
+  const p = boot({ reply: replyWith(stream(), 8192) });
+  await settle();
+  p.send('画一张标题页');
+  await settle();
+  const req = JSON.parse(p.fetches[1].init.body);
+  assert.deepEqual(req.attachments, []);
+  assert.deepEqual(Object.keys(req).sort(),
+    ['attachments', 'baseRevision', 'scene', 'selection', 'sessionId', 'text']);
+});
+
+test('满 4 个之后 ＋ 禁用、多选里超出的部分给提示；删掉一个又能加', async () => {
+  const p = boot();
+  await settle();
+  p.attach([imageFile('a.png', 100, 100), imageFile('b.png', 100, 100),
+    imageFile('c.png', 100, 100), imageFile('d.png', 100, 100), imageFile('e.png', 100, 100)]);
+  await settle();
+
+  assert.deepEqual(p.chips().map((c) => c.name), ['a.png', 'b.png', 'c.png', 'd.png']);
+  assert.equal(p.els['btn-chat-plus'].disabled, true);
+  assert.ok(p.lines().some((l) => /附件最多 4 个/.test(l)), '静默丢掉第 5 个等于骗用户');
+
+  p.els['chat-atts'].childNodes[1].childNodes[2].fire('click');
+  assert.deepEqual(p.chips().map((c) => c.name), ['a.png', 'c.png', 'd.png']);
+  assert.equal(p.els['btn-chat-plus'].disabled, false);
+});
+
+test('菜单：点 ＋ 开合，点菜单项收起并触发对应的隐藏 input', async () => {
+  const p = boot();
+  await settle();
+  const menu = p.els['chat-menu'];
+  assert.equal(menu.hidden, true, '默认收起');
+
+  p.els['btn-chat-plus'].fire('click');
+  assert.equal(menu.hidden, false);
+  p.els['btn-chat-plus'].fire('click');
+  assert.equal(menu.hidden, true, '再点一次收起');
+
+  p.els['btn-chat-plus'].fire('click');
+  p.els['btn-att-image'].fire('click');
+  assert.equal(menu.hidden, true);
+  assert.equal(p.els['file-chat-image'].clicks, 1);
+  assert.equal(p.els['file-chat-doc'].clicks, 0, '两个入口不能串台');
+
+  p.els['btn-chat-plus'].fire('click');
+  p.els['btn-att-doc'].fire('click');
+  assert.equal(p.els['file-chat-doc'].clicks, 1);
+
+  p.els['btn-chat-plus'].fire('click');
+  let leaked = true;
+  p.els['btn-chat-plus'].fire('keydown', { key: 'Escape', stopPropagation() { leaked = false; } });
+  assert.equal(menu.hidden, true);
+  assert.equal(leaked, false, 'Esc 漏给 input.js 会顺手取消画布选中');
+});
+
+test('生成期间不许改附件：＋ 和 chip 上的 × 一起禁掉', async () => {
+  let release = null;
+  const p = boot({ reply: () => new Promise((r) => { release = r; }) });
+  await settle();
+  p.attach([imageFile('a.png', 100, 100)]);
+  await settle();
+  p.send('画一张海报');
+  await settle();
+
+  assert.equal(p.els['btn-chat-plus'].disabled, true);
+  p.attach([imageFile('b.png', 100, 100)]);
+  await settle();
+  assert.deepEqual(p.chips(), [], '这一轮的附件已经发走了，生成中不能再挂新的');
+
+  release(Object.assign({}, SSE_OK, { body: makeBody(stream(), 8192) }));
+  await settle();
+  assert.equal(p.els['btn-chat-plus'].disabled, false);
+});
+
+test('文本附件：超长截断，chip 上写明白', async () => {
+  const p = boot({ reply: replyWith(stream(), 8192) });
+  await settle();
+  p.attach([textFile('notes.md', '要点'.repeat(9000))], 'doc');
+  await settle();
+
+  assert.deepEqual(p.chips(), [{ name: 'notes.md', meta: '前 12000 字', disabled: false }]);
+  p.send('照这份提纲画');
+  await settle();
+  const a = JSON.parse(p.fetches[1].init.body).attachments[0];
+  assert.equal(a.kind, 'text');
+  assert.equal(a.text.length, 12000);
+  assert.equal(a.truncated, true);
+});
+
+test('读不了的东西一律说清楚，不静默忽略', async () => {
+  const p = boot();
+  await settle();
+  p.attach([textFile('spec.pdf', 'x'), textFile('bin.txt', 'a' + String.fromCharCode(0) + 'b'),
+    textFile('empty.txt', '   '), imageFile('huge.png', 100, 100, 40 * 1024 * 1024)], 'doc');
+  await settle();
+
+  const log = p.lines().join('\n');
+  assert.deepEqual(p.chips(), []);
+  assert.ok(/spec\.pdf：PDF \/ Word \/ Excel/.test(log));
+  assert.ok(/bin\.txt：这看起来不是纯文本文件/.test(log));
+  assert.ok(/empty\.txt：文件是空的/.test(log));
+  assert.ok(/huge\.png：文件太大（40\.0MB）/.test(log));
+});
+
+test('只挂了附件没打字：不发请求，但说一句为什么', async () => {
+  const p = boot();
+  await settle();
+  p.attach([imageFile('a.png', 100, 100)]);
+  await settle();
+  p.send('');
+  await settle();
+
+  assert.equal(p.fetches.filter((f) => f.url === '/api/agent').length, 0);
+  assert.ok(p.lines().some((l) => /说一句要用这些附件做什么/.test(l)));
+  assert.deepEqual(p.chips().map((c) => c.name), ['a.png'], '附件不能被这次空发送吃掉');
+});
+
+test('粘贴和拖拽是同一条路：剪贴板里的图直接变附件，纯文字不拦', async () => {
+  const p = boot();
+  await settle();
+  let prevented = 0;
+  p.els['chat-input'].fire('paste', {
+    clipboardData: { files: [imageFile('shot.png', 300, 200)] },
+    preventDefault() { prevented += 1; }
+  });
+  await settle();
+  assert.deepEqual(p.chips().map((c) => c.name), ['shot.png']);
+  assert.equal(prevented, 1);
+
+  p.els['chat-input'].fire('paste', {
+    clipboardData: { files: [] }, preventDefault() { prevented += 1; }
+  });
+  await settle();
+  assert.equal(prevented, 1, '纯文字粘贴必须原样落进输入框');
+
+  p.els['chat-panel'].fire('drop', { dataTransfer: { files: [imageFile('drag.png', 300, 200)] } });
+  await settle();
+  assert.deepEqual(p.chips().map((c) => c.name), ['shot.png', 'drag.png']);
 });

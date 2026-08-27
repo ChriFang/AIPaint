@@ -101,7 +101,7 @@ function execute(call, ctx) {
       result: {
         ok: true,
         summary: '当前画布',
-        scene: SPEC.explainScene(ctx.scene, { srcRefs: ctx.srcRefs, selection: ctx.selection }),
+        scene: SPEC.explainScene(ctx.scene, { srcRefs: ctx.srcRefs, uploads: ctx.uploads, selection: ctx.selection }),
         notes: SPEC.auditScene(ctx.scene)
       }
     });

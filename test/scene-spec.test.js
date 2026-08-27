@@ -201,6 +201,7 @@ test('applyOps 之后依然满足往返不变式', () => {
 });
 
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==';
+const PNG2 = 'data:image/jpeg;base64,JJJJJJJJJJJJJJJJ==';
 
 test('图片句柄化：模型只见 srcRef，data URL 不进上下文，还原后一致', () => {
   const sc = M.validateScene({
@@ -221,6 +222,45 @@ test('图片句柄化：模型只见 srcRef，data URL 不进上下文，还原�
   assert.ok(res.ok, JSON.stringify(res.problems));
   S.restoreImageSrc(res.scene, st.srcUrls);
   assert.equal(res.scene.shapes[0].src, PNG);
+});
+
+test('registerUploads：挂进同一张句柄表，避让已经占掉的 upN', () => {
+  const sc = M.validateScene({
+    width: 400, height: 300, background: '#ffffff',
+    shapes: [
+      { type: 'image', x: 0, y: 0, w: 100, h: 100, src: PNG },
+      // 场景里本来就带着一个占位符（导入的 JSON 或上一轮没还原成功的那张）
+      { type: 'image', x: 0, y: 0, w: 100, h: 100, src: 'data:image/png;base64,AIPaintRefup1' }
+    ]
+  }).scene;
+  const st = S.stripImageSrc(sc);
+  assert.deepEqual(Object.keys(st.srcRefs).sort(), ['img1', 'up1']);
+
+  const ups = S.registerUploads(st, [
+    { kind: 'image', name: 'ref.png', dataUrl: PNG2, w: 1600, h: 900 },
+    { kind: 'text', name: 'notes.md', text: '不是图片，不该拿到句柄' },
+    { kind: 'image', name: 'b.png', dataUrl: PNG, w: 10, h: 10 }
+  ]);
+
+  assert.deepEqual(ups.map((u) => u.ref), ['up2', 'up3'], '撞上 up1 就往后挪，绝不覆盖');
+  assert.equal(st.srcUrls.up1, undefined, '画布上那张的真字节本来就不在手上，不能被顶掉');
+  assert.equal(st.srcUrls.up2, PNG2);
+  assert.equal(st.srcRefs.up2, 'data:image/png;base64,AIPaintRefup2');
+  assert.deepEqual(ups[0], { ref: 'up2', name: 'ref.png', w: 1600, h: 900 });
+
+  // 注册过就能用：三道 srcRef 闸门都以这张表为准，所以这里不需要额外的开关
+  const res = S.normalizeAgentScene({
+    width: 400, height: 300, background: '#ffffff',
+    shapes: [{ type: 'image', x: 10, y: 10, w: 320, h: 180, srcRef: 'up2' }]
+  }, Object.assign({}, OPTS, { srcRefs: st.srcRefs }));
+  assert.ok(res.ok, JSON.stringify(res.problems));
+  S.restoreImageSrc(res.scene, st.srcUrls);
+  assert.equal(res.scene.shapes[0].src, PNG2, '发回浏览器的必须是真 data URL');
+
+  const said = S.explainScene(st.scene, { srcRefs: st.srcRefs, uploads: ups });
+  assert.ok(said.includes('up2（ref.png，1600×900 像素，宽高比 1.8）'), said);
+  assert.ok(said.includes('画布里已有的图片 srcRef：img1'), said);
+  assert.ok(!said.includes('iVBOR'), '上传图的字节一样不许进上下文');
 });
 
 test('image 只能引用已有 srcRef', () => {

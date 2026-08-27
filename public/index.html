@@ -206,12 +206,24 @@
       </header>
       <div class="chat-log" id="chat-log" aria-live="polite"></div>
       <form class="chat-composer" id="chat-form">
+        <!-- 附件条在输入框之上：挂了什么一眼看得见，发送之后清空 -->
+        <div class="chat-atts" id="chat-atts" hidden></div>
         <textarea id="chat-input" rows="3" placeholder="说要画什么，例如：做一张 1200×675 的三栏产品对比图" spellcheck="false"></textarea>
         <div class="chat-actions">
+          <div class="chat-plus" id="chat-plus-wrap">
+            <button id="btn-chat-plus" class="icon" type="button" title="添加文件和工具" aria-haspopup="menu">＋</button>
+            <div class="chat-menu" id="chat-menu" role="menu" hidden>
+              <button id="btn-att-image" type="button" role="menuitem" title="图会被摆进画布当素材；版式参考则是先让另一个模型把它描述一遍，画图的模型看到的是描述而不是原图"><span class="mi">🖼</span>添加图片</button>
+              <button id="btn-att-doc" type="button" role="menuitem"><span class="mi">📄</span>添加文件</button>
+            </div>
+          </div>
           <!-- 状态行本身就是配置入口，所以是个真按钮：焦点、Enter、读屏都免费拿到 -->
           <button class="chat-hint" id="chat-hint" type="button" title="点击配置模型"></button>
           <button id="chat-send" class="primary" type="submit">发送</button>
         </div>
+        <!-- 不能复用工具栏的 #file-image：它的 change 处理器直接把图插进画布 -->
+        <input type="file" id="file-chat-image" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+        <input type="file" id="file-chat-doc" accept=".txt,.md,.markdown,.csv,.tsv,.json,.log,.yml,.yaml,.js,.ts,.css,.html,.py,.sh,text/*" multiple hidden>
       </form>
     </aside>
   </div>
@@ -251,6 +263,8 @@
 <script src="js/store.js"></script>
 <script src="js/view.js"></script>
 <script src="js/input.js"></script>
+<!-- 手动插图和聊天面板的附件共用同一个压缩器，所以它得排在两者之前 -->
+<script src="js/imagefile.js"></script>
 <script src="js/ui.js"></script>
 <!-- agent.js 必须排在 ui.js 之后：两者都用 DOMContentLoaded 起步，
      后注册的后执行，于是 agent.js 里可以直接用已经 init 过的 View / UI。 -->

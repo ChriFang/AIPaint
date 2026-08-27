@@ -56,6 +56,58 @@ function addUsage(stats, usage) {
   stats.completionTokens += Number(usage.completion_tokens) || 0;
 }
 
+/** 纯文本附件：直接当资料拼进这一轮的提示。routes 已经管好了长度和条数 */
+function pickDocs(attachments) {
+  return (Array.isArray(attachments) ? attachments : [])
+    .filter((a) => a && a.kind === 'text' && typeof a.text === 'string' && a.text.trim())
+    .map((a) => ({
+      name: String(a.name || '附件'), text: a.text, truncated: Boolean(a.truncated)
+    }));
+}
+
+/**
+ * 看图：上传的图先让视觉模型描述一遍，描述（不是图）再进主循环。
+ *
+ * 为什么不整轮换成视觉模型：版面质量是这套设计的全部价值，而盲画版面靠的是链式算术，
+ * 把主循环降级到 flash 就是拿唯一的核心指标去换一个辅助能力。附带的好处是图片 token
+ * 只付一次而不是每轮各付一次，thinking/tool_choice 的按轮次逻辑也不用为它开分支。
+ * 代价：多一次往返，而且模型看到的是文字描述而不是原图 —— 这句话也写进了提示里。
+ *
+ * 失败不算致命：描述没有，图仍然能当素材摆进画布。所以只报一句状态，继续往下走。
+ */
+async function describeUploads(cfg, input, uploads, srcUrls, stats, emit) {
+  const images = uploads
+    .map((up) => Object.assign({}, up, { url: srcUrls[up.ref] }))
+    .filter((im) => im.url);
+  if (!images.length || !cfg.visionModel || input.signal.aborted) return '';
+
+  emit('status', { text: '正在看你传的图…', phase: true });
+  try {
+    // 一次性覆盖模型名。cfg 是每次调用传进去的普通对象，deepseek.js 只从 cfg.model 取，
+    // 所以这一行就是完整的「换模型」，客户端一个字都不用改。
+    const vcfg = Object.assign({}, cfg, { model: cfg.visionModel });
+    const res = await DS.streamChatCompletion(vcfg, {
+      messages: [PROMPT.visionMessage(images)],
+      tools: [],
+      thinking: false,
+      signal: input.signal,
+      fixture: 'vision'
+    });
+    addUsage(stats, res.usage);
+    const text = String(res.message.content || '').trim();
+    if (!text) return '';
+    emit('status', {
+      text: '已读过你传的 ' + images.length + ' 张图（画图的模型拿到的是文字描述，不是原图）。'
+    });
+    if (cfg.debug) console.log('[agent] vision ' + cfg.visionModel + ' → ' + text.length + '字');
+    return text;
+  } catch (err) {
+    if (input.signal.aborted) return '';
+    emit('status', { text: '看图失败（' + (err && err.message) + '）：图还能当素材摆进画布，但版式参考没有了。' });
+    return '';
+  }
+}
+
 /**
  * 跑完一次用户输入。emit(event, data) 由 routes 提供；它负责在连接已断时静默丢弃。
  * @param {object} input {text, scene, selection, baseRevision, measure, signal}
@@ -67,20 +119,28 @@ async function run(cfg, input, emit) {
   if (base.warnings.length) emit('status', { text: '画布有 ' + base.warnings.length + ' 处被修正' });
   // 剥离图片：几 MB base64 既不进模型上下文，也不进每轮的深拷贝
   const stripped = SPEC.stripImageSrc(base.scene);
+  // 用户这一轮上传的图挂进同一张句柄表，于是模型能把它摆进画布 —— 三道 srcRef 闸门
+  // 都以这张表为准，所以「注册了才能用」不需要额外的检查
+  const uploads = SPEC.registerUploads(stripped, input.attachments);
   const known = base.scene.shapes.map((s) => s.id);
   const ctx = {
     scene: stripped.scene,
     srcRefs: stripped.srcRefs,
+    uploads: uploads,
+    docs: pickDocs(input.attachments),
     selection: (Array.isArray(input.selection) ? input.selection : []).filter((id) => known.indexOf(id) >= 0),
     measure: input.measure
   };
+
+  const stats = { rounds: 0, applied: 0, promptTokens: 0, completionTokens: 0, reasoningChars: 0 };
+  // 看图要在拼提示之前：描述是 user 消息的一部分，而 user 消息只在开跑前拼一次
+  ctx.visionText = await describeUploads(cfg, input, uploads, stripped.srcUrls, stats, emit);
 
   const tools = TOOLS.declarations(cfg);
   const messages = [
     { role: 'system', content: PROMPT.systemPrompt() },
     PROMPT.userMessage(input.text, ctx)
   ];
-  const stats = { rounds: 0, applied: 0, promptTokens: 0, completionTokens: 0, reasoningChars: 0 };
   let revision = Number(input.baseRevision) || 0;
   let text = '';
   let clean = false;

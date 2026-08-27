@@ -1,0 +1,21 @@
+data: {"id":"chatcmpl-up1","object":"chat.completion.chunk","created":1,"model":"deepseek-v4-pro","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"reasoning_content":"用户传了一张 1600×900 的图，宽高比 1.78：放 640×360 刚好。"},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"type":"function","function":{"name":"set_scene","arguments":""}}]},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_0_poster","function":{"arguments":"{\"width\":800,\"height\":600,\"background\":\"#0f172a\","}}]},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"shapes\":[{\"type\":\"image\",\"x\":80,\"y\":80,\"w\":640,"}}]},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"h\":360,\"srcRef\":\"up1\"},"}}]},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"type\":\"text\",\"x\":80,\"y\":476,\"text\":\"春日新品\",\"fontSize\":36,"}}]},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"bold\":true,\"fill\":\"#f8fafc\"}]}"}}]},"finish_reason":null}]}
+
+data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
+
+data: {"choices":[],"usage":{"prompt_tokens":1301,"completion_tokens":288,"total_tokens":1589}}
+
+data: [DONE]

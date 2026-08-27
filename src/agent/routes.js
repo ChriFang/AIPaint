@@ -17,6 +17,16 @@ const LOCAL_HOST_RE = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 const MAX_TEXT = 16000;
 const HEARTBEAT_MS = 15000;
 
+/* 附件上限。宁可 400 也不静默丢弃：这个端点花的是用户 API key 的钱，
+ * 一个悄悄被忽略的附件会让用户以为模型看过了，然后对着结果纳闷。 */
+const MAX_ATTACHMENTS = 4;
+const MAX_IMAGE_CHARS = 3 * 1024 * 1024;      // 压缩后的 data URL；浏览器那边已经把长边压到 2048
+const MAX_DOC_CHARS = 12000;                  // 和 desktop-tools 的截断口径一致
+const MAX_ATTACH_BYTES = 8 * 1024 * 1024;     // 整个数组序列化后的上限
+const MAX_NAME = 200;
+// 只收我们自己的 canvas 编码器能产出的三种；浏览器一律重编码，所以这不是在过滤用户的原文件
+const IMAGE_URL_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+
 function allowRemote() { return process.env.AIPAINT_AGENT_ALLOW_REMOTE === '1'; }
 
 /** 同源判定：没有 Origin 的是非浏览器客户端（curl / 测试），放过；有就必须和 Host 一致 */
@@ -61,13 +71,47 @@ function sseWriter(res) {
   return writer;
 }
 
+/**
+ * 附件白名单校验。逐项拒绝而不是过滤掉坏的那几项 —— 用户看得见自己挂了几个附件，
+ * 服务端偷偷少收一个就是在骗人。
+ */
+function badAttachments(list) {
+  if (list === undefined || list === null) return null;
+  if (!Array.isArray(list)) return 'attachments 必须是数组';
+  if (list.length > MAX_ATTACHMENTS) return '附件最多 ' + MAX_ATTACHMENTS + ' 个';
+  let bytes = 0;
+  for (let i = 0; i < list.length; i++) {
+    const a = list[i];
+    const at = 'attachments[' + i + ']';
+    if (!a || typeof a !== 'object') return at + ' 必须是对象';
+    if (a.kind !== 'image' && a.kind !== 'text') return at + '.kind 只能是 image 或 text';
+    if (typeof a.name !== 'string' || !a.name.trim() || a.name.length > MAX_NAME) return at + '.name 非法';
+    if (a.kind === 'image') {
+      if (typeof a.dataUrl !== 'string' || !IMAGE_URL_RE.test(a.dataUrl)) return at + '.dataUrl 必须是 png/jpeg/webp 的 base64 data URL';
+      if (a.dataUrl.length > MAX_IMAGE_CHARS) return at + ' 图片过大（上限 ' + Math.round(MAX_IMAGE_CHARS / 1024 / 1024) + ' MB，请先压缩）';
+      if (!isPixel(a.w) || !isPixel(a.h)) return at + ' 缺少有效的 w/h 像素尺寸';
+      bytes += a.dataUrl.length;
+    } else {
+      if (typeof a.text !== 'string' || !a.text) return at + '.text 不能为空';
+      if (a.text.length > MAX_DOC_CHARS) return at + ' 文本过长（上限 ' + MAX_DOC_CHARS + ' 字，请先截断）';
+      bytes += a.text.length;
+    }
+  }
+  if (bytes > MAX_ATTACH_BYTES) return '附件总量过大（上限 ' + Math.round(MAX_ATTACH_BYTES / 1024 / 1024) + ' MB）';
+  return null;
+}
+
+function isPixel(n) {
+  return Number.isInteger(n) && n >= 1 && n <= 8192;
+}
+
 function badRequest(body) {
   if (!body || typeof body !== 'object') return '请求体必须是 JSON 对象';
   if (typeof body.text !== 'string' || !body.text.trim()) return '缺少 text';
   if (body.text.length > MAX_TEXT) return 'text 过长（上限 ' + MAX_TEXT + ' 字）';
   if (!body.scene || typeof body.scene !== 'object') return '缺少 scene';
   if (typeof body.sessionId !== 'string' || !/^[\w-]{8,64}$/.test(body.sessionId)) return 'sessionId 非法';
-  return null;
+  return badAttachments(body.attachments);
 }
 
 /* ---------- 凭证 ---------- */
@@ -216,6 +260,7 @@ function create(options) {
         text: req.body.text,
         scene: req.body.scene,
         selection: req.body.selection,
+        attachments: req.body.attachments,
         baseRevision: req.body.baseRevision,
         measure: measure,
         signal: controller.signal
