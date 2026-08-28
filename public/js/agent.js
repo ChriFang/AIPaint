@@ -70,7 +70,11 @@
   function sys(text) { return msg('msg msg-s', text); }
   function tool(text) { return msg('msg msg-s tool', text); }
   function note(text) { return msg('msg msg-note', text); }
-  function hint(text) { els.hint.textContent = text; }
+  function hint(text) {
+    els.hint.textContent = text;
+    var actions = els.actions || (els.hint && els.hint.parentNode);
+    if (actions && actions.classList) actions.classList.toggle('has-status', Boolean(text));
+  }
 
   /** 给日志里的消息挂一个按钮：出错时告诉用户能干什么，比只报错有用 */
   function action(box, label, fn) {
@@ -292,10 +296,13 @@
     if (run && run.streamEl) run.streamEl.classList.remove('streaming');
     settled();
     if (data.stuck) note('模型没能自己改对，已停下。换个说法或说得更具体一点再试。');
-    var parts = [cfg.model || 'deepseek'];
-    parts.push(data.applied ? '已应用 ' + data.applied + ' 次改动' : '画布未改动');
+    var parts = [data.applied ? '已应用 ' + data.applied + ' 次改动' : '画布未改动'];
     if (data.rounds) parts.push(data.rounds + ' 轮');
     if (data.ms) parts.push((data.ms / 1000).toFixed(1) + 's');
+    if (Number.isFinite(data.totalTokens)) {
+      parts.push('输入 ' + (data.promptTokens || 0) + ' · 输出 ' +
+        (data.completionTokens || 0) + ' · 合计 ' + data.totalTokens + ' tokens');
+    }
     hint(parts.join(' · '));
   }
 
@@ -556,7 +563,7 @@
       if (controller.signal.aborted) sys('已中断，画布保持在上一次应用的状态');
       else fail('连接中断：' + (err && err.message ? err.message : String(err)));
     } finally {
-      if (!run.done) hint(cfg.model || ''); // 状态行由 CSS 隐藏模型名称
+      if (!run.done) hint('');
       settled();                              // 连接断在半路时也不能留下「正在规划版面…」
       run = null;
       setBusy(false);
@@ -641,7 +648,7 @@
   function applyKeyState() {
     els.hint.classList.toggle('warn', !cfg.hasApiKey);
     els.send.disabled = !cfg.hasApiKey || !!run;
-    hint(cfg.hasApiKey ? cfg.model : '未配置模型 API key，点这里配置');
+    hint(cfg.hasApiKey ? '' : '未配置模型 API key，点这里配置');
     if (cfg.hasApiKey) clearAskForKey();
   }
 
@@ -778,6 +785,7 @@
     };
     for (var k in els) if (!els[k]) return;   // 结构缺了就整块不启动，绝不连累已经跑好的 ui.js
     els.model = $('chat-model');
+    els.actions = $('chat-actions');
 
     dlg = {
       wrap: $('agent-settings'), form: $('cfg-form'), base: $('cfg-base-url'), key: $('cfg-api-key'),
@@ -805,7 +813,6 @@
       dlg.wrap.addEventListener('keydown', function (ev) {
         if (ev.key === 'Escape') { ev.stopPropagation(); closeSettings(); }
       });
-      els.hint.addEventListener('click', openSettings);
     }
 
     els.toggle.addEventListener('click', function () { setMode(mode === 'ai' ? 'manual' : 'ai'); });

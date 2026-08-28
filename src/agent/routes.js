@@ -274,6 +274,8 @@ function create(options) {
       }, sse.emit);
       sse.emit('done', {
         revision: out.revision, applied: out.stats.applied, rounds: out.stats.rounds,
+        promptTokens: out.stats.promptTokens, completionTokens: out.stats.completionTokens,
+        totalTokens: out.stats.promptTokens + out.stats.completionTokens,
         stuck: out.stuck, ms: Date.now() - startedAt
       });
       console.log('[agent] 完成 rounds=' + out.stats.rounds + ' applied=' + out.stats.applied +
@@ -287,7 +289,10 @@ function create(options) {
       if (!aborted) console.error('[agent] 失败:', err);
       else console.log('[agent] 中断于 ' + (Date.now() - startedAt) + 'ms');
       sse.emit('error', { message: message, aborted: aborted });
-      sse.emit('done', { revision: Number(req.body.baseRevision) || 0, applied: 0, aborted: aborted });
+      sse.emit('done', {
+        revision: Number(req.body.baseRevision) || 0, applied: 0, aborted: aborted,
+        promptTokens: 0, completionTokens: 0, totalTokens: 0
+      });
     } finally {
       clearInterval(beat);
       SESSION.end(sessionId);

@@ -414,12 +414,12 @@ kbd {
 .chat-input-shell:focus-within { border-color: var(--accent); }
 .chat-input-shell:has(.chat-atts:not([hidden])) textarea { min-height: 59px; }
 .chat-actions {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 8px;
-  margin-top: 6px;
+  margin: 0 0 6px;
 }
-.chat-actions:has(.chat-hint:not(.warn)) { display: none; }
+.chat-actions.has-status { display: flex; }
 .chat-hint {
   flex: 1 1 auto;
   min-width: 0;
@@ -431,10 +431,11 @@ kbd {
   background: none;
   border: none;
   border-radius: 0;
-  visibility: hidden;
+  visibility: visible;
+  cursor: default;
+  pointer-events: none;
 }
-.chat-hint.warn { visibility: visible; }
-.chat-hint:hover { background: none; color: var(--text); text-decoration: underline; }
+.chat-hint:hover { background: none; color: var(--text-dim); text-decoration: none; }
 /* 全站第一个弹出层，所以模式在这儿定：锚点是输入框内的 .chat-plus，向上弹 */
 .chat-plus {
   position: relative;
