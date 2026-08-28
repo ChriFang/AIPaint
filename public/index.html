@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -12,12 +12,12 @@
     <div class="brand"><span class="logo">◆</span>AIPaint</div>
 
     <div class="group">
-      <span class="label">画布</span>
-      <input id="canvas-w" class="num" type="number" min="1" max="8000" step="1" title="画布宽度">
+      <span class="label" data-i18n="toolbar.canvas">Canvas</span>
+      <input id="canvas-w" class="num" type="number" min="1" max="8000" step="1" data-i18n-title="toolbar.canvasWidth">
       <span class="mul">×</span>
-      <input id="canvas-h" class="num" type="number" min="1" max="8000" step="1" title="画布高度">
-      <select id="preset-size" class="sel" title="常用尺寸">
-        <option value="">尺寸预设</option>
+      <input id="canvas-h" class="num" type="number" min="1" max="8000" step="1" data-i18n-title="toolbar.canvasHeight">
+      <select id="preset-size" class="sel" data-i18n-title="toolbar.commonSizes">
+        <option value="" data-i18n="toolbar.commonSizes">Common sizes</option>
         <option value="1280x800">1280 × 800</option>
         <option value="1920x1080">1920 × 1080</option>
         <option value="1080x1080">1080 × 1080（方图）</option>
@@ -25,69 +25,69 @@
         <option value="750x1334">750 × 1334（手机）</option>
         <option value="800x600">800 × 600</option>
       </select>
-      <input id="canvas-bg" type="color" class="color" title="画布底色">
+      <input id="canvas-bg" type="color" class="color" data-i18n-title="toolbar.background">
     </div>
 
     <div class="group">
-      <button id="undo" class="icon" title="撤销 (⌘Z)">↶</button>
-      <button id="redo" class="icon" title="重做 (⇧⌘Z)">↷</button>
+      <button id="undo" class="icon" data-i18n-title="toolbar.undo">↶</button>
+      <button id="redo" class="icon" data-i18n-title="toolbar.redo">↷</button>
     </div>
 
     <div class="group">
-      <button id="zoom-out" class="icon" title="缩小 (⌘-)">−</button>
-      <button id="zoom-level" class="zoom" title="点击回到 100% (⌘0)">100%</button>
-      <button id="zoom-in" class="icon" title="放大 (⌘+)">+</button>
-      <button id="zoom-fit" title="适应窗口 (⇧1)">适应</button>
+      <button id="zoom-out" class="icon" data-i18n-title="toolbar.zoomOut">−</button>
+      <button id="zoom-level" class="zoom" data-i18n-title="toolbar.zoomReset">100%</button>
+      <button id="zoom-in" class="icon" data-i18n-title="toolbar.zoomIn">+</button>
+      <button id="zoom-fit" data-i18n-title="toolbar.fit" data-i18n="toolbar.fit">Fit</button>
     </div>
 
     <div class="spacer"></div>
 
     <div class="group">
-      <button id="btn-mode-toggle" type="button" title="在 AI 模式和手动编辑之间切换">手动编辑</button>
+      <button id="btn-mode-toggle" type="button" data-i18n-title="toolbar.modeTitle" data-i18n="toolbar.manual">Manual editing</button>
     </div>
 
     <div class="group">
-      <label class="chk"><input type="checkbox" id="toggle-grid" checked>网格</label>
-      <label class="chk"><input type="checkbox" id="toggle-snap">吸附</label>
+      <label class="chk"><input type="checkbox" id="toggle-grid" checked><span data-i18n="toolbar.grid">Grid</span></label>
+      <label class="chk"><input type="checkbox" id="toggle-snap"><span data-i18n="toolbar.snap">Snap</span></label>
     </div>
 
     <div class="group">
-      <button id="btn-import-json" title="从 JSON 文件恢复场景">导入</button>
-      <button id="btn-save-json" title="把场景存成 JSON">存档</button>
-      <button id="btn-clear" title="清空画布">清空</button>
+      <button id="btn-import-json" data-i18n-title="toolbar.import" data-i18n="toolbar.import">Import</button>
+      <button id="btn-save-json" data-i18n-title="toolbar.save" data-i18n="toolbar.save">Save</button>
+      <button id="btn-clear" data-i18n-title="toolbar.clear" data-i18n="toolbar.clear">Clear</button>
     </div>
 
     <div class="group export">
-      <select id="export-format" class="sel" title="导出格式">
+      <select id="export-format" class="sel" data-i18n-title="toolbar.exportFormat">
         <option value="png">PNG</option>
         <option value="jpeg">JPEG</option>
       </select>
-      <select id="export-scale" class="sel" title="导出倍率">
+      <select id="export-scale" class="sel" data-i18n-title="toolbar.exportScale">
         <option value="1">1×</option>
         <option value="2" selected>2×</option>
         <option value="3">3×</option>
         <option value="4">4×</option>
       </select>
-      <label class="chk" id="transparent-wrap"><input type="checkbox" id="export-transparent">透明底</label>
-      <button id="btn-export" class="primary" title="调用服务端 node-canvas 渲染并下载">导出图片</button>
+      <label class="chk" id="transparent-wrap"><input type="checkbox" id="export-transparent"><span data-i18n="toolbar.transparent">Transparent background</span></label>
+      <button id="btn-export" class="primary" data-i18n-title="toolbar.exportTitle" data-i18n="toolbar.export">Export image</button>
     </div>
   </header>
 
   <div class="body">
     <aside class="toolbar" id="toolbar">
-      <button class="tool active" data-tool="select" title="选择 / 移动 (V)"><span class="ico">➚</span><span class="cap">选择</span></button>
-      <button class="tool" data-tool="rect" title="矩形 (R)"><span class="ico">▭</span><span class="cap">矩形</span></button>
-      <button class="tool" data-tool="roundRect" title="圆角矩形"><span class="ico">▢</span><span class="cap">圆角矩形</span></button>
-      <button class="tool" data-tool="ellipse" title="椭圆 (O)"><span class="ico">◯</span><span class="cap">椭圆</span></button>
-      <button class="tool" data-tool="diamond" title="菱形 (D)"><span class="ico">◇</span><span class="cap">菱形</span></button>
-      <button class="tool" data-tool="line" title="直线 (L)"><span class="ico">╱</span><span class="cap">直线</span></button>
-      <button class="tool" data-tool="arrow" title="箭头 (A)"><span class="ico">↗</span><span class="cap">箭头</span></button>
-      <button class="tool" data-tool="connector" title="连接线"><span class="ico">⌁</span><span class="cap">连接线</span></button>
-      <button class="tool" data-tool="pen" title="自由画笔 (P)"><span class="ico">✎</span><span class="cap">画笔</span></button>
-      <button class="tool" data-tool="text" title="文本 (T)，双击可编辑"><span class="ico">T</span><span class="cap">文本</span></button>
-      <button class="tool" data-tool="image" title="插入图片 (I)"><span class="ico">🖼</span><span class="cap">图片</span></button>
-      <button class="tool" data-tool="note" title="便签"><span class="ico">▤</span><span class="cap">便签</span></button>
-      <button class="tool" data-tool="group" title="将选中对象成组"><span class="ico">▣</span><span class="cap">分组</span></button>
+      <button class="tool active" data-tool="select"><span class="ico">➚</span><span class="cap" data-i18n="tool.select">Select</span></button>
+      <button class="tool" data-tool="rect"><span class="ico">▭</span><span class="cap" data-i18n="tool.rect">Rectangle</span></button>
+      <button class="tool" data-tool="roundRect"><span class="ico">▢</span><span class="cap" data-i18n="tool.roundRect">Rounded rectangle</span></button>
+      <button class="tool" data-tool="ellipse"><span class="ico">◯</span><span class="cap" data-i18n="tool.ellipse">Ellipse</span></button>
+      <button class="tool" data-tool="diamond"><span class="ico">◇</span><span class="cap" data-i18n="tool.diamond">Diamond</span></button>
+      <button class="tool" data-tool="line"><span class="ico">╱</span><span class="cap" data-i18n="tool.line">Line</span></button>
+      <button class="tool" data-tool="arrow"><span class="ico">↗</span><span class="cap" data-i18n="tool.arrow">Arrow</span></button>
+      <button class="tool" data-tool="connector"><span class="ico">⌁</span><span class="cap" data-i18n="tool.connector">Connector</span></button>
+      <button class="tool" data-tool="pen"><span class="ico">✎</span><span class="cap" data-i18n="tool.pen">Pen</span></button>
+      <button class="tool" data-tool="text"><span class="ico">T</span><span class="cap" data-i18n="tool.text">Text</span></button>
+      <button class="tool" data-tool="image"><span class="ico">🖼</span><span class="cap" data-i18n="tool.image">Image</span></button>
+      <button class="tool" data-tool="note"><span class="ico">▤</span><span class="cap" data-i18n="tool.note">Note</span></button>
+      <button class="tool" data-tool="group"><span class="ico">▣</span><span class="cap" data-i18n="tool.group">Group</span></button>
     </aside>
     <main class="stage" id="stage">
       <canvas id="board"></canvas>
@@ -96,61 +96,61 @@
 
     <aside class="props" id="props">
       <section class="panel">
-        <h3>样式</h3>
+        <h3 data-i18n="props.style">Style</h3>
         <div class="row">
-          <span class="k">填充</span>
+          <span class="k" data-i18n="props.fill">Fill</span>
           <input type="color" id="p-fill" class="color">
-          <label class="chk"><input type="checkbox" id="p-fill-none">无</label>
+          <label class="chk"><input type="checkbox" id="p-fill-none"><span data-i18n="props.none">None</span></label>
         </div>
         <div class="row">
-          <span class="k">描边</span>
+          <span class="k" data-i18n="props.stroke">Stroke</span>
           <input type="color" id="p-stroke" class="color">
-          <label class="chk"><input type="checkbox" id="p-stroke-none">无</label>
+          <label class="chk"><input type="checkbox" id="p-stroke-none"><span data-i18n="props.none">None</span></label>
         </div>
         <div class="row">
-          <span class="k">线宽</span>
+          <span class="k" data-i18n="props.strokeWidth">Line width</span>
           <input type="range" id="p-strokeWidth" min="0" max="40" step="1">
           <output id="p-strokeWidth-out">2</output>
         </div>
         <div class="row">
-          <span class="k">线型</span>
+          <span class="k" data-i18n="props.dash">Line style</span>
           <select id="p-dash" class="sel grow">
-            <option value="solid">实线</option>
-            <option value="dashed">虚线</option>
-            <option value="dotted">点线</option>
+            <option value="solid" data-i18n="props.solid">Solid</option>
+            <option value="dashed" data-i18n="props.dashed">Dashed</option>
+            <option value="dotted" data-i18n="props.dotted">Dotted</option>
           </select>
         </div>
         <div class="row">
-          <span class="k">透明</span>
+          <span class="k" data-i18n="props.opacity">Opacity</span>
           <input type="range" id="p-opacity" min="0" max="1" step="0.05">
           <output id="p-opacity-out">100%</output>
         </div>
         <div class="row" data-only="rect">
-          <span class="k">圆角</span>
+          <span class="k" data-i18n="props.radius">Corner radius</span>
           <input type="range" id="p-radius" min="0" max="120" step="1">
           <output id="p-radius-out">8</output>
         </div>
       </section>
       <section class="panel" data-only="text">
-        <h3>文本</h3>
+        <h3 data-i18n="props.text">Text</h3>
         <div class="row">
-          <span class="k">字号</span>
+          <span class="k" data-i18n="props.fontSize">Font size</span>
           <input type="number" id="p-fontSize" class="num grow" min="4" max="400" step="1">
         </div>
         <div class="row">
-          <span class="k">字体</span>
+          <span class="k" data-i18n="props.fontFamily">Font</span>
           <select id="p-fontFamily" class="sel grow">
-            <option value="sans">无衬线</option>
-            <option value="serif">衬线</option>
-            <option value="mono">等宽</option>
+            <option value="sans" data-i18n="props.sans">Sans-serif</option>
+            <option value="serif" data-i18n="props.serif">Serif</option>
+            <option value="mono" data-i18n="props.mono">Monospace</option>
           </select>
         </div>
         <div class="row">
-          <span class="k">对齐</span>
+          <span class="k" data-i18n="props.align">Align</span>
           <div class="seg" id="p-textAlign">
-            <button data-val="left">左</button>
-            <button data-val="center">中</button>
-            <button data-val="right">右</button>
+            <button data-val="left" data-i18n="props.left">Left</button>
+            <button data-val="center" data-i18n="props.center">Center</button>
+            <button data-val="right" data-i18n="props.right">Right</button>
           </div>
         </div>
         <div class="row">
@@ -163,36 +163,36 @@
       </section>
 
       <section class="panel" id="panel-geometry">
-        <h3>位置与尺寸</h3>
+        <h3 data-i18n="props.geometry">Position and size</h3>
         <div class="grid2">
           <label>X<input type="number" id="p-x" class="num" step="1"></label>
           <label>Y<input type="number" id="p-y" class="num" step="1"></label>
-          <label>宽<input type="number" id="p-w" class="num" step="1" min="1"></label>
-          <label>高<input type="number" id="p-h" class="num" step="1" min="1"></label>
+          <label><span data-i18n="props.width">Width</span><input type="number" id="p-w" class="num" step="1" min="1"></label>
+          <label><span data-i18n="props.height">Height</span><input type="number" id="p-h" class="num" step="1" min="1"></label>
         </div>
         <div class="row">
-          <span class="k">旋转</span>
+          <span class="k" data-i18n="props.rotation">Rotation</span>
           <input type="range" id="p-rotation" min="-180" max="180" step="1">
           <output id="p-rotation-out">0°</output>
         </div>
       </section>
       <section class="panel">
-        <h3>层级与操作</h3>
+        <h3 data-i18n="props.layers">Layer and actions</h3>
         <div class="row wrap">
-          <button data-order="front" title="置顶 (⌘⇧])">置顶</button>
-          <button data-order="up" title="上移 (⌘])">上移</button>
-          <button data-order="down" title="下移 (⌘[)">下移</button>
-          <button data-order="back" title="置底 (⌘⇧[)">置底</button>
+          <button data-order="front" data-i18n="props.front">Bring to front</button>
+          <button data-order="up" data-i18n="props.up">Bring forward</button>
+          <button data-order="down" data-i18n="props.down">Send backward</button>
+          <button data-order="back" data-i18n="props.back">Send to back</button>
         </div>
         <div class="row wrap">
-          <button id="btn-duplicate" title="复制 (⌘D)">复制</button>
-          <button id="btn-delete" class="danger" title="删除 (Delete)">删除</button>
+          <button id="btn-duplicate" data-i18n="props.duplicate">Duplicate</button>
+          <button id="btn-delete" class="danger" data-i18n="props.delete">Delete</button>
         </div>
       </section>
 
       <section class="panel empty" id="panel-empty">
-        <h3>没有选中对象</h3>
-        <p class="hint">左侧选一个工具在画布上拖拽即可绘制。此处的样式会作为新图形的默认样式。</p>
+        <h3 data-i18n="props.empty">No object selected</h3>
+        <p class="hint" data-i18n="props.emptyHint">Choose a tool on the left and drag on the canvas to draw.</p>
         <ul class="keys">
           <li><kbd>V</kbd> 选择 · <kbd>R</kbd> 矩形 · <kbd>O</kbd> 椭圆 · <kbd>T</kbd> 文本</li>
           <li><kbd>双击</kbd> 编辑文本 · <kbd>Delete</kbd> 删除</li>
@@ -204,29 +204,29 @@
 
     <aside class="chat" id="chat-panel">
       <header class="chat-head">
-        <span class="chat-title">AI 绘图</span>
-        <button id="btn-agent-settings" class="icon" type="button" title="配置 API Base URL 和 API Key">⚙</button>
-        <button id="btn-agent-stop" class="danger" type="button" hidden>停止</button>
+        <span class="chat-title" data-i18n="chat.title">AI drawing</span>
+        <button id="btn-agent-settings" class="icon" type="button" data-i18n-title="chat.settings">⚙</button>
+        <button id="btn-agent-stop" class="danger" type="button" hidden data-i18n="chat.stop">Stop</button>
       </header>
       <div class="chat-log" id="chat-log" aria-live="polite"></div>
       <form class="chat-composer" id="chat-form">
         <div class="chat-actions" id="chat-actions">
           <!-- 显示最近一次调用的模型、改动次数、轮次和耗时 -->
-          <button class="chat-hint" id="chat-hint" type="button" title="点击配置模型"></button>
+          <button class="chat-hint" id="chat-hint" type="button"></button>
         </div>
         <div class="chat-input-shell">
           <!-- 附件条和添加按钮都放在输入框容器内，发送之后清空附件 -->
           <div class="chat-atts" id="chat-atts" hidden></div>
-          <textarea id="chat-input" rows="3" placeholder="说要画什么，例如：做一张 1200×675 的三栏产品对比图" spellcheck="false"></textarea>
+          <textarea id="chat-input" rows="3" data-i18n-placeholder="chat.inputPlaceholder" spellcheck="false"></textarea>
           <div class="chat-plus" id="chat-plus-wrap">
-            <button id="btn-chat-plus" class="icon" type="button" title="添加文件和工具" aria-haspopup="menu">＋</button>
+            <button id="btn-chat-plus" class="icon" type="button" data-i18n-title="chat.addTools" aria-haspopup="menu">＋</button>
             <div class="chat-menu" id="chat-menu" role="menu" hidden>
-              <button id="btn-att-image" type="button" role="menuitem" title="图会被摆进画布当素材；版式参考则是先让另一个模型把它描述一遍，画图的模型看到的是描述而不是原图"><span class="mi">🖼</span>添加图片</button>
-              <button id="btn-att-doc" type="button" role="menuitem"><span class="mi">📄</span>添加文件</button>
+              <button id="btn-att-image" type="button" role="menuitem"><span class="mi">🖼</span><span data-i18n="chat.addImage">Add image</span></button>
+              <button id="btn-att-doc" type="button" role="menuitem"><span class="mi">📄</span><span data-i18n="chat.addFile">Add file</span></button>
             </div>
           </div>
-          <select id="chat-model" class="chat-model" title="选择模型" aria-label="选择模型"></select>
-          <button id="chat-send" class="chat-send-icon" type="submit" title="发送" aria-label="发送">↑</button>
+          <select id="chat-model" class="chat-model" data-i18n-title="chat.chooseModel" data-i18n-aria-label="chat.chooseModel"></select>
+          <button id="chat-send" class="chat-send-icon" type="submit" data-i18n-title="chat.send" data-i18n-aria-label="chat.send">↑</button>
         </div>
         <!-- 不能复用工具栏的 #file-image：它的 change 处理器直接把图插进画布 -->
         <input type="file" id="file-chat-image" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
@@ -236,9 +236,13 @@
   </div>
 
   <footer class="statusbar">
-    <span id="status-left">就绪</span>
+    <span id="status-left" data-i18n="status.ready">Ready</span>
     <span id="status-msg" class="msg"></span>
     <span id="status-right"></span>
+    <select id="locale-select" class="status-locale" title="Language" aria-label="Language">
+      <option value="zh-CN">中文</option>
+      <option value="en-US">English</option>
+    </select>
   </footer>
 </div>
 
@@ -246,7 +250,7 @@
      key 只往上传、不往下取 —— 服务端回的永远是 sk-abc…wxyz 那种掩码。 -->
 <div class="modal" id="agent-settings" hidden>
   <form class="modal-card" id="cfg-form" role="dialog" aria-modal="true" aria-labelledby="cfg-title">
-    <h3 id="cfg-title">模型配置</h3>
+    <h3 id="cfg-title" data-i18n="config.title">Model configuration</h3>
     <label class="field">API Base URL
       <input id="cfg-base-url" type="text" spellcheck="false" autocomplete="off" autocapitalize="off">
     </label>
@@ -255,8 +259,8 @@
     </label>
     <p class="modal-note" id="cfg-note"></p>
     <div class="modal-actions">
-      <button type="button" id="cfg-cancel">取消</button>
-      <button type="submit" id="cfg-save" class="primary">保存</button>
+      <button type="button" id="cfg-cancel" data-i18n="config.cancel">Cancel</button>
+      <button type="submit" id="cfg-save" class="primary" data-i18n="config.save">Save</button>
     </div>
   </form>
 </div>
@@ -272,6 +276,7 @@
 <script src="js/input.js"></script>
 <!-- 手动插图和聊天面板的附件共用同一个压缩器，所以它得排在两者之前 -->
 <script src="js/imagefile.js"></script>
+<script src="js/i18n.js"></script>
 <script src="js/ui.js"></script>
 <!-- agent.js 必须排在 ui.js 之后：两者都用 DOMContentLoaded 起步，
      后注册的后执行，于是 agent.js 里可以直接用已经 init 过的 View / UI。 -->

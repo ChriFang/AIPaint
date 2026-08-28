@@ -115,6 +115,12 @@ function badRequest(body) {
   return badAttachments(body.attachments);
 }
 
+function localeOf(body, cfg) {
+  if (body && body.locale === 'zh-CN') return 'zh-CN';
+  if (body && body.locale === 'en-US') return 'en-US';
+  return cfg && cfg.defaultLocale === 'zh-CN' ? 'zh-CN' : 'en-US';
+}
+
 /* ---------- 凭证 ---------- */
 
 const MAX_KEY = 512;
@@ -269,6 +275,7 @@ function create(options) {
         selection: req.body.selection,
         attachments: req.body.attachments,
         baseRevision: req.body.baseRevision,
+        locale: localeOf(req.body, cfg),
         measure: measure,
         signal: controller.signal
       }, sse.emit);

@@ -294,6 +294,22 @@ kbd {
 .statusbar .msg { flex: 1 1 auto; color: var(--text); }
 .statusbar .msg.err { color: #ff9d99; }
 .statusbar .msg.ok { color: #86e5a4; }
+.status-locale {
+  width: 88px;
+  height: 22px;
+  flex: 0 0 auto;
+  padding: 0 5px;
+  color: var(--text-dim);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font: inherit;
+  cursor: pointer;
+}
+.status-locale:focus {
+  border-color: var(--accent);
+  outline: none;
+}
 
 @media (max-width: 1080px) {
   .props { width: 210px; }

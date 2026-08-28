@@ -12,6 +12,7 @@ const DEFAULT_MODEL = 'deepseek-v4-pro';
 const DEFAULT_VISION_MODEL = 'deepseek-v4-flash-vision-exp';
 const DEFAULT_BASE_URL = 'https://api.deepseek.com';
 const EFFORTS = ['low', 'medium', 'high'];
+const LOCALES = ['zh-CN', 'en-US'];
 
 function intEnv(name, def, lo, hi) {
   const raw = process.env[name];
@@ -42,6 +43,8 @@ function load() {
     streamReasoning: process.env.AGENT_STREAM_REASONING !== '0',
     requestTimeoutMs: intEnv('AGENT_REQUEST_TIMEOUT_MS', 540000, 5000, 1200000),
     maxConcurrent: intEnv('AGENT_MAX_CONCURRENT', 2, 1, 8),
+    defaultLocale: LOCALES.indexOf(process.env.AIPAINT_LOCALE) >= 0
+      ? process.env.AIPAINT_LOCALE : 'en-US',
     // fixture：把 fetch 换成读 test/fixtures/*.sse，CI 不烧 API
     transport: process.env.AIPAINT_AGENT_TRANSPORT === 'fixture' ? 'fixture' : 'http',
     fixtureDir: process.env.AIPAINT_AGENT_FIXTURE_DIR || 'test/fixtures',
@@ -67,4 +70,4 @@ function publicConfig(cfg) {
   };
 }
 
-module.exports = { load, publicConfig, DEFAULT_MODEL, DEFAULT_VISION_MODEL, DEFAULT_BASE_URL };
+module.exports = { load, publicConfig, DEFAULT_MODEL, DEFAULT_VISION_MODEL, DEFAULT_BASE_URL, LOCALES };

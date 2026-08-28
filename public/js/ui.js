@@ -11,6 +11,9 @@
   var lastFill = '#dbeafe';
   var lastStroke = '#1f2933';
   var statusTimer = 0;
+  function tr(key, params) {
+    return global.I18n ? global.I18n.t(key, params) : key;
+  }
 
   function $(id) { return doc.getElementById(id); }
 
@@ -236,9 +239,9 @@
 
     $('btn-clear').addEventListener('click', function () {
       if (!Store.state.scene.shapes.length) return;
-      if (global.confirm('清空画布上的所有图形？（可以用 ⌘Z 撤销）')) {
+      if (global.confirm(tr('status.clearConfirm'))) {
         Store.clearScene();
-        status('画布已清空', 'ok');
+        status(tr('status.cleared'), 'ok');
       }
     });
 
@@ -299,7 +302,7 @@
       filename: 'aipaint-drawing-' + timestamp()
     };
     btn.disabled = true;
-    status('服务端渲染中…');
+    status(tr('status.rendering'));
     var started = Date.now();
     try {
       var res = await global.fetch('/api/export', {
@@ -309,20 +312,22 @@
       });
       if (!res.ok) {
         var info = await res.json().catch(function () { return { error: res.statusText }; });
-        status('导出失败：' + (info.error || res.status), 'err');
+        status(tr('status.exportFailed', { error: info.error || res.status }), 'err');
         return;
       }
       var blob = await res.blob();
       download(blob, body.filename + (format === 'jpeg' ? '.jpg' : '.png'));
       var warns = [];
       try { warns = JSON.parse(decodeURIComponent(res.headers.get('X-Warnings') || '%5B%5D')); } catch (e) { warns = []; }
-      status('已导出 ' + (res.headers.get('X-Output-Size') || '') +
-        ' · ' + (blob.size / 1024).toFixed(1) + 'KB' +
-        ' · 服务端 ' + (res.headers.get('X-Render-Ms') || '?') + 'ms' +
-        ' · 往返 ' + (Date.now() - started) + 'ms' +
+      status(tr('status.exported', {
+        output: res.headers.get('X-Output-Size') || '',
+        size: (blob.size / 1024).toFixed(1),
+        render: res.headers.get('X-Render-Ms') || '?',
+        round: Date.now() - started
+      }) +
         (warns.length ? ' · ' + warns.length + ' 条提示：' + warns[0] : ''), 'ok');
     } catch (err) {
-      status('导出请求失败：' + err.message + '（服务是否还在运行？）', 'err');
+      status(tr('status.exportFailed', { error: err.message || String(err) }), 'err');
     } finally {
       btn.disabled = false;
     }
@@ -330,7 +335,7 @@
   function saveJSON() {
     var text = JSON.stringify(Store.state.scene, null, 2);
     download(new global.Blob([text], { type: 'application/json' }), 'aipaint-scene-' + timestamp() + '.json');
-    status('场景已存为 JSON', 'ok');
+    status(tr('status.saveJSON'), 'ok');
   }
 
   function loadJSONFile(file) {
@@ -344,9 +349,9 @@
         remeasureMissingTexts();
         Store.commit();
         View.fit();
-        status('已导入场景' + (warnings.length ? '（' + warnings.length + ' 条提示：' + warnings[0] + '）' : ''), 'ok');
+        status(tr('status.imported') + (warnings.length ? ' (' + warnings.length + ': ' + warnings[0] + ')' : ''), 'ok');
       } catch (err) {
-        status('JSON 解析失败：' + err.message, 'err');
+        status(tr('status.parseFailed', { error: err.message }), 'err');
       }
     };
     reader.readAsText(file);
@@ -364,7 +369,7 @@
     if (!file) return;
     global.ImageFile.downscale(file).then(function (out) {
       if (out.dataUrl.length > M.LIMITS.maxImageChars) {
-        status('图片太大（' + (out.dataUrl.length / 1048576).toFixed(1) + 'MB），请先压缩', 'err');
+        status(tr('status.imageTooLarge', { size: (out.dataUrl.length / 1048576).toFixed(1) }), 'err');
         return;
       }
       var scene = Store.state.scene;
@@ -382,10 +387,14 @@
       }));
       Store.setTool('select');
       var shrank = out.w !== out.srcW;
-      status('已插入图片 ' + out.srcW + '×' + out.srcH +
-        (shrank ? '（已压到 ' + out.w + '×' + out.h + '）' : ''), 'ok');
+      status(tr('status.imageInserted', {
+        original: out.srcW + '×' + out.srcH,
+        scaled: shrank ? (global.I18n.getLocale() === 'zh-CN'
+          ? '（已压到 ' + out.w + '×' + out.h + '）'
+          : ' (scaled to ' + out.w + '×' + out.h + ')') : ''
+      }), 'ok');
     }, function (err) {
-      status(err && err.message ? err.message : '图片读取失败', 'err');
+      status(err && err.message ? err.message : tr('status.imageReadFailed'), 'err');
     });
   }
   /* ---------------- 状态 → 界面 ---------------- */
@@ -444,10 +453,7 @@
       $('p-rotation-out').textContent = deg + '°';
     }
   }
-  var TYPE_LABELS = {
-    rect: '矩形', roundRect: '圆角矩形', ellipse: '椭圆', diamond: '菱形', line: '直线',
-    arrow: '箭头', connector: '连接线', path: '手绘线', text: '文本', note: '便签', group: '分组', image: '图片'
-  };
+  function typeLabel(type) { return tr('tool.' + type); }
 
   function sync() {
     var st = Store.state;
@@ -472,16 +478,20 @@
 
     syncProps(sel.length ? sel[0] : st.style, sel.length ? sel[0].type : null, sel.length);
 
-    $('status-left').textContent = st.scene.shapes.length + ' 个图形 · ' +
-      st.scene.width + '×' + st.scene.height;
+    $('status-left').textContent = tr('status.shapeCount', {
+      count: st.scene.shapes.length, width: st.scene.width, height: st.scene.height
+    });
     if (sel.length === 1) {
       var b = M.shapeBBox(sel[0]);
-      $('status-right').textContent = '已选：' + (TYPE_LABELS[sel[0].type] || sel[0].type) +
-        ' ' + Math.round(b.w) + '×' + Math.round(b.h);
+      $('status-right').textContent = tr('status.selected', {
+        type: typeLabel(sel[0].type), width: Math.round(b.w), height: Math.round(b.h)
+      });
     } else if (sel.length > 1) {
-      $('status-right').textContent = '已选 ' + sel.length + ' 个对象';
+      $('status-right').textContent = tr('status.selectedMany', { count: sel.length });
     } else {
-      $('status-right').textContent = '工具：' + (st.tool === 'select' ? '选择' : (TYPE_LABELS[st.tool] || st.tool));
+      $('status-right').textContent = tr('status.tool', {
+        type: st.tool === 'select' ? typeLabel('select') : typeLabel(st.tool)
+      });
     }
   }
   /* ---------------- 启动 ---------------- */
@@ -526,10 +536,10 @@
       var res = await global.fetch('/api/health');
       var info = await res.json();
       var missing = !info.fontFiles || !info.fontFiles.cjk;
-      status('服务端就绪 · node-canvas ' + info.canvas +
-        (missing ? ' · 未找到中日韩字体，导出中文可能变成方块' : ''), missing ? 'err' : 'ok');
+      status(tr('status.health', { canvas: info.canvas }) +
+        (missing ? tr('status.healthMissingFont') : ''), missing ? 'err' : 'ok');
     } catch (err) {
-      status('无法连接导出服务，请确认 npm start 已运行', 'err');
+      status(tr('status.healthFailed'), 'err');
     }
   }
   function init() {
@@ -541,6 +551,15 @@
     initProps();
     initActions();
     syncExportControls();
+    var localeSelect = $('locale-select');
+    if (localeSelect && global.I18n) {
+      localeSelect.value = global.I18n.getLocale();
+      localeSelect.addEventListener('change', function () { global.I18n.setLocale(this.value); });
+      doc.addEventListener('aipaint-locale-change', function () {
+        localeSelect.value = global.I18n.getLocale();
+        sync();
+      });
+    }
 
     Store.on(function () {
       View.scheduleRender();

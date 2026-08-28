@@ -30,6 +30,9 @@
   var guard = null;      // 发送那一刻的场景指纹
   var revision = 0;      // 本地场景版本号，随请求发给服务端并在 scene 事件里回显
   var sessionId = uuid();
+  function tr(key, params) {
+    return global.I18n ? global.I18n.t(key, params) : key;
+  }
 
   function $(id) { return global.document.getElementById(id); }
 
@@ -196,7 +199,7 @@
     if (run) { run.applied += 1; lockDoc(true); }   // commit 触发的 UI.sync 会把撤销键放回来
     if (data.refit) refit();
     if (warnings.length) {
-      note('本地校验修正了 ' + warnings.length + ' 处：' + warnings[0]);
+      note(tr('agent.correction', { count: warnings.length }) + warnings[0]);
     }
     var notes = data.notes || [];
     for (var i = 0; i < notes.length; i++) note(notes[i]);
@@ -204,11 +207,11 @@
 
   function applyScene(data) {
     if (sameStamp(stamp(), guard)) { commitScene(data); return; }
-    var box = msg('msg msg-e', '场景已被手动修改，AI 结果未应用。');
-    action(box, '仍然应用', function (btn) {
+    var box = msg('msg msg-e', tr('agent.sceneChanged'));
+    action(box, tr('agent.override'), function (btn) {
       btn.disabled = true;
       commitScene(data);
-      sys('已用 AI 结果覆盖当前场景');
+      sys(tr('agent.overridden'));
     });
   }
 
@@ -260,7 +263,7 @@
 
   function onEvent(name, data) {
     if (name === 'open') {
-      hint((data.model || cfg.model) + ' · 生成中…');
+      hint((data.model || cfg.model) + ' · ' + tr('agent.generating'));
     } else if (name === 'status') {
       if (data.phase) phase(data.text || '');
       else sys(data.text || '');
@@ -274,12 +277,12 @@
       tool(data.preview || data.name || '');
     } else if (name === 'tool_result') {
       if (data.ok) tool(data.summary || '');
-      else note('模型自查未通过（' + (data.problems || []).length + ' 处），正在修正：' + (data.summary || ''));
+      else note(tr('agent.validation', { count: (data.problems || []).length }) + (data.summary || ''));
     } else if (name === 'scene') {
       applyScene(data);
     } else if (name === 'error') {
-      if (data.aborted) sys('已中断，画布保持在上一次应用的状态');
-      else fail(data.message || '生成失败');
+      if (data.aborted) sys(tr('agent.interrupted'));
+      else fail(data.message || tr('agent.failed'));
     } else if (name === 'done') {
       finish(data);
     }
@@ -295,13 +298,14 @@
     if (run) run.done = true;
     if (run && run.streamEl) run.streamEl.classList.remove('streaming');
     settled();
-    if (data.stuck) note('模型没能自己改对，已停下。换个说法或说得更具体一点再试。');
-    var parts = [data.applied ? '已应用 ' + data.applied + ' 次改动' : '画布未改动'];
-    if (data.rounds) parts.push(data.rounds + ' 轮');
+    if (data.stuck) note(tr('agent.stuck'));
+    var parts = [data.applied ? tr('agent.applied', { count: data.applied }) : tr('agent.unchanged')];
+    if (data.rounds) parts.push(tr('agent.rounds', { count: data.rounds }));
     if (data.ms) parts.push((data.ms / 1000).toFixed(1) + 's');
     if (Number.isFinite(data.totalTokens)) {
-      parts.push('输入 ' + (data.promptTokens || 0) + ' · 输出 ' +
-        (data.completionTokens || 0) + ' · 合计 ' + data.totalTokens + ' tokens');
+      parts.push(tr('agent.tokens', {
+        input: data.promptTokens || 0, output: data.completionTokens || 0, total: data.totalTokens
+      }));
     }
     hint(parts.join(' · '));
   }
@@ -335,7 +339,7 @@
   function readImage(file) {
     return global.ImageFile.downscale(file).then(function (out) {
       if (out.dataUrl.length > MAX_IMG_CHARS) {
-        throw new Error('压到 ' + out.w + '×' + out.h + ' 还是太大，请先自己压一下');
+        throw new Error('Image remains too large after scaling to ' + out.w + '×' + out.h);
       }
       return {
         kind: 'image', name: file.name || '图片', mime: out.mime,
@@ -347,15 +351,15 @@
   function readDoc(file) {
     return new Promise(function (resolve, reject) {
       if (NO_TEXT_RE.test(file.name || '')) {
-        reject(new Error('PDF / Word / Excel 这类格式读不了，先另存成 .txt 或 .md'));
+        reject(new Error('PDF, Word, and Excel files are not supported. Save as .txt or .md first.'));
         return;
       }
       var reader = new global.FileReader();
-      reader.onerror = function () { reject(new Error('读不出这个文件')); };
+      reader.onerror = function () { reject(new Error('Unable to read this file')); };
       reader.onload = function () {
         var raw = String(reader.result || '');
-        if (!raw.trim()) { reject(new Error('文件是空的')); return; }
-        if (looksBinary(raw)) { reject(new Error('这看起来不是纯文本文件')); return; }
+        if (!raw.trim()) { reject(new Error('The file is empty')); return; }
+        if (looksBinary(raw)) { reject(new Error('This does not appear to be a plain-text file')); return; }
         var cut = raw.length > MAX_DOC_CHARS;
         resolve({
           kind: 'text', name: file.name || '文件', mime: file.type || 'text/plain',
@@ -372,12 +376,12 @@
     for (var i = 0; i < list.length; i++) files.push(list[i]);
     for (var j = 0; j < files.length; j++) {
       var f = files[j];
-      if (atts.length >= MAX_ATTS) { note('附件最多 ' + MAX_ATTS + ' 个，剩下的没加上。'); break; }
+      if (atts.length >= MAX_ATTS) { note(tr('chat.tooMany', { count: MAX_ATTS })); break; }
       // 上限跟压缩器共用一个数：图片和文本都在读之前先拦一道，别让 40MB 进 FileReader
       var cap = global.ImageFile.MAX_SRC_BYTES;
       if (f.size > cap) {
-        note(f.name + '：文件太大（' + (f.size / 1048576).toFixed(1) + 'MB），上限 ' +
-          (cap / 1048576) + 'MB。');
+        note(f.name + ': file is too large (' + (f.size / 1048576).toFixed(1) + 'MB); limit ' +
+          (cap / 1048576) + 'MB.');
         continue;
       }
       try {
@@ -406,11 +410,11 @@
     meta.className = 'meta';
     meta.textContent = a.kind === 'image'
       ? a.w + '×' + a.h
-      : (a.truncated ? '前 ' + a.text.length + ' 字' : a.text.length + ' 字');
+      : (a.truncated ? tr('chat.leadingChars') + a.text.length + tr('chat.chars') : a.text.length + tr('chat.chars'));
     var x = global.document.createElement('button');
     x.type = 'button';
     x.textContent = '×';
-    x.title = '移除';
+    x.title = tr('chat.remove');
     x.disabled = !!run;
     x.addEventListener('click', function () { dropAtt(a); });
     box.appendChild(name);
@@ -427,7 +431,7 @@
     att.strip.hidden = atts.length === 0;
     var full = atts.length >= MAX_ATTS;
     att.plus.disabled = !!run || full;
-    att.plus.title = full ? '附件已达上限（' + MAX_ATTS + ' 个）' : '添加文件和工具';
+    att.plus.title = full ? tr('chat.maxReached', { count: MAX_ATTS }) : tr('chat.addTools');
     if (att.plus.disabled) closeMenu();
   }
 
@@ -533,7 +537,7 @@
     };
     guard = stamp();
     msg('msg msg-u', text);
-    if (files.length) sys('附件：' + files.map(function (a) { return a.name; }).join('、'));
+    if (files.length) sys(tr('chat.attach') + files.map(function (a) { return a.name; }).join(global.I18n && global.I18n.getLocale() === 'en-US' ? ', ' : '、'));
     setBusy(true);
     try {
       var requestBody = {
@@ -542,7 +546,8 @@
         baseRevision: revision,
         selection: Store.state.selection.slice(),
         scene: Store.state.scene,
-        attachments: files
+        attachments: files,
+        locale: global.I18n ? global.I18n.getLocale() : 'en-US'
       };
       var selectedModel = els.model ? els.model.value : '';
       if (selectedModel && selectedModel !== cfg.model) requestBody.model = selectedModel;
@@ -555,15 +560,15 @@
       if (!res.ok || !res.body) {
         var info = null;
         try { info = await res.json(); } catch (err) { info = null; }
-        fail((info && info.error) || ('请求失败：HTTP ' + res.status));
+        fail((info && info.error) || tr('agent.requestFailed', { status: res.status }));
         return;
       }
       await readSSE(res, onEvent);
     } catch (err) {
       // 自己 abort 的话服务端那条 error 事件是收不到的（socket 已经断了），
       // 所以「已中断」这句话必须由本地补上
-      if (controller.signal.aborted) sys('已中断，画布保持在上一次应用的状态');
-      else fail('连接中断：' + (err && err.message ? err.message : String(err)));
+      if (controller.signal.aborted) sys(tr('agent.interrupted'));
+      else fail(tr('agent.disconnected', { error: err && err.message ? err.message : String(err) }));
     } finally {
       if (!run.done) hint('');
       settled();                              // 连接断在半路时也不能留下「正在规划版面…」
@@ -576,12 +581,12 @@
     var text = els.input.value.trim();
     if (run) return;
     if (!text) {
-      if (atts.length) note('说一句要用这些附件做什么，再发送。');
+      if (atts.length) note(tr('chat.emptyAttachment'));
       return;
     }
     // 发送键这时候是灰的，但 Enter 走的是这条路，所以拦一次并顺手把配置弹出来
     if (!cfg.hasApiKey) {
-      askForKey('还没配置模型 API key，先填一下。');
+      askForKey(tr('agent.noKey'));
       openSettings();
       return;
     }
@@ -604,8 +609,8 @@
   function setMode(next) {
     mode = next === 'manual' ? 'manual' : 'ai';
     app().classList.toggle('ai-mode', mode === 'ai');
-    els.toggle.textContent = mode === 'ai' ? '手动编辑' : 'AI 模式';
-    els.toggle.title = mode === 'ai' ? '调出手动编辑工具' : '回到 AI 绘图';
+    els.toggle.textContent = mode === 'ai' ? tr('toolbar.manual') : tr('toolbar.aiMode');
+    els.toggle.title = mode === 'ai' ? 'Show manual editing tools' : 'Return to AI drawing';
     if (mode === 'ai') Store.setTool('select');   // 免得手动模式选的画笔留着十字光标
     try { global.localStorage.setItem(MODE_KEY, mode); } catch (err) { /* 隐私模式忽略 */ }
     refit();                                      // 面板出现/消失让 .stage 变宽变窄
@@ -650,7 +655,7 @@
   function applyKeyState() {
     els.hint.classList.toggle('warn', !cfg.hasApiKey);
     els.send.disabled = !cfg.hasApiKey || !!run;
-    hint(cfg.hasApiKey ? '' : '未配置模型 API key，点这里配置');
+    hint(cfg.hasApiKey ? '' : tr('config.keyMissing'));
     if (cfg.hasApiKey) clearAskForKey();
   }
 
@@ -663,14 +668,14 @@
     if (!dlgOk) return;
     dlg.wrap.hidden = false;
     dlg.key.value = '';
-    cfgNote('正在读取当前配置…', '');
+    cfgNote(tr('config.loading'), '');
     dlg.base.focus();
 
     var info;
     try {
       info = await (await global.fetch(CRED_URL)).json();
     } catch (err) {
-      cfgNote('读不到当前配置：' + (err && err.message ? err.message : String(err)), 'err');
+      cfgNote(tr('config.loadFailed', { error: err && err.message ? err.message : String(err) }), 'err');
       return;
     }
     if (dlg.wrap.hidden) return;   // 请求飞行期间被关掉了，别再往上写
@@ -679,13 +684,12 @@
     dlg.base.placeholder = defBase;
     dlg.base.value = info.baseUrl || defBase;
     dlg.key.value = info.hasApiKey ? KEY_DOTS : '';
-    dlg.key.placeholder = info.hasApiKey ? '留空表示不改' : 'sk-…';
+    dlg.key.placeholder = info.hasApiKey ? tr('config.keep') : tr('config.keyPlaceholder');
     if (info.hasApiKey && !info.fromEnvFile) {
       // shell 里的变量盖过文件，这时候写 .env 是白写，必须说清楚
-      cfgNote('当前 key 来自 shell 环境变量，优先级比 .env 高。要用文件里的值，得先在 shell 里 unset DEEPSEEK_API_KEY 再重启。', 'err');
+      cfgNote(tr('config.shellWarning'), 'err');
     } else {
-      cfgNote((info.hasApiKey ? 'key 已配置，不动它就直接保存。' : '') +
-        '保存后立即生效，不用重启。文件按 0600 写，只有你自己能读。', '');
+      cfgNote((info.hasApiKey ? tr('config.configured') : '') + tr('config.savedHint'), '');
     }
   }
 
@@ -702,7 +706,7 @@
     var base = dlg.base.value.trim();
     var key = dlg.key.value === KEY_DOTS ? '' : dlg.key.value.trim();
     dlg.save.disabled = true;
-    cfgNote('正在写入…', '');
+    cfgNote(tr('config.writing'), '');
     try {
       var res = await global.fetch(CRED_URL, {
         method: 'POST',
@@ -712,17 +716,19 @@
       var info = null;
       try { info = await res.json(); } catch (err) { info = null; }
       if (!res.ok || !info || !info.ok) {
-        cfgNote((info && info.error) || ('保存失败：HTTP ' + res.status), 'err');
+        cfgNote((info && info.error) || tr('config.saveFailed', { error: 'HTTP ' + res.status }), 'err');
         return;
       }
       cfg.hasApiKey = !!info.hasApiKey;
       cfg.model = info.model || cfg.model;
       applyKeyState();
       closeSettings();
-      sys('凭证已写入 ' + info.envPath + '，已生效。当前：' + info.baseUrl +
-        (info.hasApiKey ? ' · key ' + info.apiKeyMasked : ''));
+      sys(tr('config.saved', {
+        path: info.envPath, base: info.baseUrl,
+        key: info.hasApiKey ? ' · key ' + info.apiKeyMasked : ''
+      }));
     } catch (err) {
-      cfgNote('保存失败：' + (err && err.message ? err.message : String(err)), 'err');
+      cfgNote(tr('config.saveFailed', { error: err && err.message ? err.message : String(err) }), 'err');
     } finally {
       dlg.save.disabled = false;
     }
@@ -744,7 +750,7 @@
     applyKeyState();
     loadModels();
     if (!cfg.hasApiKey) {
-      askForKey('还没配置模型 API key，AI 绘图暂时用不了。\n填一下就能开始，也可以点顶栏「手动编辑」自己画。');
+      askForKey(tr('config.noKey'));
     }
   }
 
@@ -841,6 +847,15 @@
     setMode(saved === 'manual' ? 'manual' : 'ai');
     sys('说想画什么就行，例如「做一张 1200×675 的三栏产品对比图」。⇧Enter 换行。');
     loadConfig();
+    if (global.document && global.I18n) {
+      global.document.addEventListener('aipaint-locale-change', function () {
+        if (!run) {
+          setMode(mode);
+          applyKeyState();
+          sys(tr('chat.ready'));
+        }
+      });
+    }
   }
 
   global.Agent = { mode: function () { return mode; }, sessionId: function () { return sessionId; } };

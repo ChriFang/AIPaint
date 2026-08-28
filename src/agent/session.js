@@ -16,6 +16,8 @@ const PROMPT = require('./prompt.js');
 const MAX_SESSIONS = 32;
 const active = new Map(); // sessionId → {controller, startedAt}
 
+function zh(locale) { return locale === 'zh-CN'; }
+
 function count() { return active.size; }
 function has(id) { return active.has(id); }
 
@@ -81,13 +83,13 @@ async function describeUploads(cfg, input, uploads, srcUrls, stats, emit) {
     .filter((im) => im.url);
   if (!images.length || !cfg.visionModel || input.signal.aborted) return '';
 
-  emit('status', { text: '正在看你传的图…', phase: true });
+  emit('status', { text: zh(input.locale) ? '正在看你传的图…' : 'Analyzing the uploaded images…', phase: true });
   try {
     // 一次性覆盖模型名。cfg 是每次调用传进去的普通对象，deepseek.js 只从 cfg.model 取，
     // 所以这一行就是完整的「换模型」，客户端一个字都不用改。
     const vcfg = Object.assign({}, cfg, { model: cfg.visionModel });
     const res = await DS.streamChatCompletion(vcfg, {
-      messages: [PROMPT.visionMessage(images)],
+      messages: [PROMPT.visionMessage(images, input.locale)],
       tools: [],
       thinking: false,
       signal: input.signal,
@@ -97,13 +99,17 @@ async function describeUploads(cfg, input, uploads, srcUrls, stats, emit) {
     const text = String(res.message.content || '').trim();
     if (!text) return '';
     emit('status', {
-      text: '已读过你传的 ' + images.length + ' 张图（画图的模型拿到的是文字描述，不是原图）。'
+      text: zh(input.locale)
+        ? '已读过你传的 ' + images.length + ' 张图（画图的模型拿到的是文字描述，不是原图）。'
+        : 'Read ' + images.length + ' uploaded image(s). The drawing model received a description, not the original images.'
     });
     if (cfg.debug) console.log('[agent] vision ' + cfg.visionModel + ' → ' + text.length + '字');
     return text;
   } catch (err) {
     if (input.signal.aborted) return '';
-    emit('status', { text: '看图失败（' + (err && err.message) + '）：图还能当素材摆进画布，但版式参考没有了。' });
+    emit('status', { text: zh(input.locale)
+      ? '看图失败（' + (err && err.message) + '）：图还能当素材摆进画布，但版式参考没有了。'
+      : 'Image analysis failed (' + (err && err.message) + '). The image can still be used as a canvas asset, but not as layout reference.' });
     return '';
   }
 }
@@ -114,9 +120,12 @@ async function describeUploads(cfg, input, uploads, srcUrls, stats, emit) {
  * @returns {Promise<object>} {text, revision, stats}
  */
 async function run(cfg, input, emit) {
+  const locale = input.locale === 'zh-CN' ? 'zh-CN' : 'en-US';
   // applyOps 的前置条件：入口场景必须先过一遍安全边界
   const base = M.validateScene(input.scene);
-  if (base.warnings.length) emit('status', { text: '画布有 ' + base.warnings.length + ' 处被修正' });
+  if (base.warnings.length) emit('status', { text: zh(locale)
+    ? '画布有 ' + base.warnings.length + ' 处被修正'
+    : 'The canvas had ' + base.warnings.length + ' issue(s) corrected.' });
   // 剥离图片：几 MB base64 既不进模型上下文，也不进每轮的深拷贝
   const stripped = SPEC.stripImageSrc(base.scene);
   // 用户这一轮上传的图挂进同一张句柄表，于是模型能把它摆进画布 —— 三道 srcRef 闸门
@@ -129,7 +138,8 @@ async function run(cfg, input, emit) {
     uploads: uploads,
     docs: pickDocs(input.attachments),
     selection: (Array.isArray(input.selection) ? input.selection : []).filter((id) => known.indexOf(id) >= 0),
-    measure: input.measure
+    measure: input.measure,
+    locale: locale
   };
 
   const stats = { rounds: 0, applied: 0, promptTokens: 0, completionTokens: 0, reasoningChars: 0 };
@@ -138,7 +148,7 @@ async function run(cfg, input, emit) {
 
   const tools = TOOLS.declarations(cfg);
   const messages = [
-    { role: 'system', content: PROMPT.systemPrompt() },
+    { role: 'system', content: PROMPT.systemPrompt(locale) },
     PROMPT.userMessage(input.text, ctx)
   ];
   let revision = Number(input.baseRevision) || 0;
@@ -167,7 +177,9 @@ async function run(cfg, input, emit) {
         // phase:true 的状态是临时的，面板在拿到正文/工具动作之后会把它撤掉。
         if (!announced) {
           announced = true;
-          emit('status', { text: round === 1 ? '正在规划版面…' : '正在检查并修正…', phase: true });
+      emit('status', { text: round === 1
+        ? (locale === 'zh-CN' ? '正在规划版面…' : 'Planning the layout…')
+        : (locale === 'zh-CN' ? '正在检查并修正…' : 'Checking and correcting…'), phase: true });
         }
         // 思考正文单独成一路事件：面板折成一块可收起的区域。绝不混进 delta，
         // 也绝不回灌模型历史（见文件头第 3 条）。AGENT_STREAM_REASONING=0 关掉这一路。
@@ -217,7 +229,9 @@ async function run(cfg, input, emit) {
 
     if (failedKey && failedKey === lastKey) {
       stuck = true;
-      emit('error', { message: '模型连续两轮犯同一类错误（' + failedKey + '），已停止。画布未改动。' });
+      emit('error', { message: zh(locale)
+        ? '模型连续两轮犯同一类错误（' + failedKey + '），已停止。画布未改动。'
+        : 'The model repeated the same type of error (' + failedKey + ') twice and stopped. The canvas was not changed.' });
       break;
     }
     lastKey = failedKey;
@@ -226,7 +240,7 @@ async function run(cfg, input, emit) {
 
   if (!text.trim() && stats.applied > 0) {
     // 卡死中止或轮次用尽时可能一句话都没有，日志不该是空的
-    text = '已更新画布。';
+    text = locale === 'zh-CN' ? '已更新画布。' : 'Canvas updated.';
     emit('delta', { text: text });
   }
   return { text: text, revision: revision, stats: stats, stuck: stuck };
