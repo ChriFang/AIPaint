@@ -509,13 +509,15 @@
 
   function setBusy(on) {
     app().classList.toggle('ai-busy', on);
-    els.stop.hidden = !on;
+    // 停止入口统一放在输入框右下角，顶部按钮只保留兼容节点并始终隐藏。
+    els.stop.hidden = true;
     els.stop.disabled = false;
     els.send.textContent = on ? '■' : '↑';
     els.send.title = on ? '停止生成' : '发送';
     if (els.send.setAttribute) els.send.setAttribute('aria-label', on ? '停止生成' : '发送');
     if (els.send.classList) els.send.classList.toggle('is-stop', on);
-    els.send.disabled = on || !cfg.hasApiKey;
+    // 运行期间发送按钮会变成停止按钮，必须保持可点击。
+    els.send.disabled = !cfg.hasApiKey;
     lockDoc(on);
     renderAtts();                                                // 生成期间不许改附件
     if (!on && global.UI && global.UI.sync) global.UI.sync();   // 把撤销键的状态交还给 ui.js
