@@ -387,18 +387,32 @@ kbd {
   padding: 8px 10px 10px;
   border-top: 1px solid var(--line);
 }
-.chat-composer textarea {
-  width: 100%;
-  resize: none;
-  font: inherit;
-  color: var(--text);
+.chat-input-shell {
+  position: relative;
+  padding: 5px 7px 42px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 7px 8px;
+  transition: min-height 0.15s ease;
+}
+.chat-input-shell:has(.chat-atts:not([hidden])) {
+  min-height: 101px;
+}
+.chat-composer textarea {
+  width: 100%;
+  display: block;
+  min-height: 49px;
+  margin: 0;
+  resize: none;
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  padding: 2px 1px;
   outline: none;
 }
-.chat-composer textarea:focus { border-color: var(--accent); }
+.chat-input-shell:focus-within { border-color: var(--accent); }
+.chat-input-shell:has(.chat-atts:not([hidden])) textarea { min-height: 59px; }
 .chat-actions {
   display: flex;
   align-items: center;
@@ -416,15 +430,48 @@ kbd {
   background: none;
   border: none;
   border-radius: 0;
+  visibility: hidden;
 }
+.chat-hint.warn { visibility: visible; }
 .chat-hint:hover { background: none; color: var(--text); text-decoration: underline; }
-/* 全站第一个弹出层，所以模式在这儿定：锚点是 .chat-plus，向上弹（composer 贴着底边） */
+/* 全站第一个弹出层，所以模式在这儿定：锚点是输入框内的 .chat-plus，向上弹 */
 .chat-plus {
   position: relative;
   flex: 0 0 auto;
   display: flex;
 }
+.chat-input-shell > .chat-plus {
+  position: absolute;
+  left: 7px;
+  bottom: 6px;
+}
 .chat-plus > button { border-radius: 50%; font-size: 17px; }
+.chat-model {
+  position: absolute;
+  left: 45px;
+  bottom: 6px;
+  width: 180px;
+  max-width: calc(100% - 55px);
+  height: 30px;
+  padding: 0 28px 0 10px;
+  color: var(--text);
+  background-color: var(--panel-2);
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%),
+    linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 12px, calc(100% - 9px) 12px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 12px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.chat-model:hover { background-color: #2d3542; border-color: #445; }
+.chat-model:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chat-model option { color: var(--text); background: var(--panel-2); }
+.chat-model:disabled { opacity: 0.55; cursor: wait; }
 .chat-menu {
   position: absolute;
   left: 0;
@@ -461,7 +508,8 @@ kbd {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 6px;
+  min-height: 0;
+  margin: 0 0 3px;
 }
 .chat-atts[hidden] { display: none; }
 .chat-att {
@@ -571,4 +619,3 @@ kbd {
 .modal-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
 /* 按钮不许被挤到换行：文案短，宽度就该由文案说 */
 .modal-actions button { flex: 0 0 auto; height: 28px; font-size: 12px; white-space: nowrap; }
-

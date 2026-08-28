@@ -206,10 +206,10 @@
       </header>
       <div class="chat-log" id="chat-log" aria-live="polite"></div>
       <form class="chat-composer" id="chat-form">
-        <!-- 附件条在输入框之上：挂了什么一眼看得见，发送之后清空 -->
-        <div class="chat-atts" id="chat-atts" hidden></div>
-        <textarea id="chat-input" rows="3" placeholder="说要画什么，例如：做一张 1200×675 的三栏产品对比图" spellcheck="false"></textarea>
-        <div class="chat-actions">
+        <div class="chat-input-shell">
+          <!-- 附件条和添加按钮都放在输入框容器内，发送之后清空附件 -->
+          <div class="chat-atts" id="chat-atts" hidden></div>
+          <textarea id="chat-input" rows="3" placeholder="说要画什么，例如：做一张 1200×675 的三栏产品对比图" spellcheck="false"></textarea>
           <div class="chat-plus" id="chat-plus-wrap">
             <button id="btn-chat-plus" class="icon" type="button" title="添加文件和工具" aria-haspopup="menu">＋</button>
             <div class="chat-menu" id="chat-menu" role="menu" hidden>
@@ -217,6 +217,9 @@
               <button id="btn-att-doc" type="button" role="menuitem"><span class="mi">📄</span>添加文件</button>
             </div>
           </div>
+          <select id="chat-model" class="chat-model" title="选择模型" aria-label="选择模型"></select>
+        </div>
+        <div class="chat-actions">
           <!-- 状态行本身就是配置入口，所以是个真按钮：焦点、Enter、读屏都免费拿到 -->
           <button class="chat-hint" id="chat-hint" type="button" title="点击配置模型"></button>
           <button id="chat-send" class="primary" type="submit">发送</button>

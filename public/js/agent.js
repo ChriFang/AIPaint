@@ -523,17 +523,20 @@
     if (files.length) sys('附件：' + files.map(function (a) { return a.name; }).join('、'));
     setBusy(true);
     try {
+      var requestBody = {
+        sessionId: sessionId,
+        text: text,
+        baseRevision: revision,
+        selection: Store.state.selection.slice(),
+        scene: Store.state.scene,
+        attachments: files
+      };
+      var selectedModel = els.model ? els.model.value : '';
+      if (selectedModel && selectedModel !== cfg.model) requestBody.model = selectedModel;
       var res = await global.fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: sessionId,
-          text: text,
-          baseRevision: revision,
-          selection: Store.state.selection.slice(),
-          scene: Store.state.scene,
-          attachments: files
-        }),
+        body: JSON.stringify(requestBody),
         signal: controller.signal
       });
       if (!res.ok || !res.body) {
@@ -549,7 +552,7 @@
       if (controller.signal.aborted) sys('已中断，画布保持在上一次应用的状态');
       else fail('连接中断：' + (err && err.message ? err.message : String(err)));
     } finally {
-      if (!run.done) hint(cfg.model || '');   // done 没来过，别把「生成中…」留在那儿
+      if (!run.done) hint(cfg.model || ''); // 状态行由 CSS 隐藏模型名称
       settled();                              // 连接断在半路时也不能留下「正在规划版面…」
       run = null;
       setBusy(false);
@@ -720,13 +723,47 @@
       var info = await res.json();
       cfg.hasApiKey = !!info.hasApiKey;
       cfg.model = info.model || '';
+      setModelOptions([cfg.model], cfg.model);
       cfg.maxRounds = info.maxRounds || 8;
     } catch (err) {
       cfg.hasApiKey = false;
     }
     applyKeyState();
+    loadModels();
     if (!cfg.hasApiKey) {
       askForKey('还没配置模型 API key，AI 绘图暂时用不了。\n填一下就能开始，也可以点顶栏「手动编辑」自己画。');
+    }
+  }
+
+  function setModelOptions(models, selected) {
+    if (!els.model) return;
+    while (els.model.firstChild) els.model.removeChild(els.model.firstChild);
+    var seen = {};
+    models.forEach(function (id) {
+      if (!id || seen[id]) return;
+      seen[id] = true;
+      var option = global.document.createElement('option');
+      option.value = id;
+      option.textContent = id;
+      els.model.appendChild(option);
+    });
+    if (selected) els.model.value = selected;
+    els.model.disabled = els.model.options.length === 0;
+  }
+
+  async function loadModels() {
+    if (!els.model) return;
+    try {
+      els.model.disabled = true;
+      var res = await global.fetch('/api/agent/models');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var info = await res.json();
+      var models = (info.data || []).map(function (item) {
+        return typeof item === 'string' ? item : item && item.id;
+      });
+      setModelOptions(models, cfg.model);
+    } catch (err) {
+      setModelOptions([cfg.model], cfg.model);
     }
   }
 
@@ -736,6 +773,7 @@
       send: $('chat-send'), hint: $('chat-hint'), stop: $('btn-agent-stop'), toggle: $('btn-mode-toggle')
     };
     for (var k in els) if (!els[k]) return;   // 结构缺了就整块不启动，绝不连累已经跑好的 ui.js
+    els.model = $('chat-model');
 
     dlg = {
       wrap: $('agent-settings'), form: $('cfg-form'), base: $('cfg-base-url'), key: $('cfg-api-key'),

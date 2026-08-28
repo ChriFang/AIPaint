@@ -26,6 +26,7 @@ const MAX_ATTACH_BYTES = 8 * 1024 * 1024;     // 整个数组序列化后的上�
 const MAX_NAME = 200;
 // 只收我们自己的 canvas 编码器能产出的三种；浏览器一律重编码，所以这不是在过滤用户的原文件
 const IMAGE_URL_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+const MODEL_RE = /^[\w.-]{1,120}$/;
 
 function allowRemote() { return process.env.AIPAINT_AGENT_ALLOW_REMOTE === '1'; }
 
@@ -225,6 +226,12 @@ function create(options) {
       res.status(503).json({ error: '未配置 DEEPSEEK_API_KEY，无法调用模型' });
       return;
     }
+    if (req.body.model !== undefined &&
+        (typeof req.body.model !== 'string' || !MODEL_RE.test(req.body.model))) {
+      res.status(400).json({ error: 'model 参数无效' });
+      return;
+    }
+    if (req.body.model) cfg.model = req.body.model;
     const sessionId = req.body.sessionId;
     if (SESSION.has(sessionId)) { res.status(409).json({ error: '这个会话正在生成中' }); return; }
     if (SESSION.count() >= cfg.maxConcurrent) { res.status(429).json({ error: '并发已满，稍后再试' }); return; }
@@ -286,6 +293,35 @@ function create(options) {
       SESSION.end(sessionId);
       sse.close();
       try { res.end(); } catch { /* 已经断了 */ }
+    }
+  });
+
+  router.get('/api/agent/models', async (req, res) => {
+    if (!guard(req, res)) return;
+    const cfg = CONFIG.load();
+    if (!cfg.apiKey && cfg.transport !== 'fixture') {
+      res.status(503).json({ error: '未配置 DEEPSEEK_API_KEY，无法获取模型列表' });
+      return;
+    }
+    if (cfg.transport === 'fixture') {
+      res.json({ data: [{ id: cfg.model }] });
+      return;
+    }
+    try {
+      const upstream = await fetch(cfg.baseUrl + '/models', {
+        headers: { Authorization: 'Bearer ' + cfg.apiKey, Accept: 'application/json' }
+      });
+      if (!upstream.ok) {
+        res.status(upstream.status).json({ error: await parseErrorResponse(upstream) });
+        return;
+      }
+      const payload = await upstream.json();
+      const data = Array.isArray(payload.data)
+        ? payload.data.filter((m) => m && typeof m.id === 'string').map((m) => ({ id: m.id }))
+        : [];
+      res.json({ data: data });
+    } catch (err) {
+      res.status(502).json({ error: '获取模型列表失败：' + (err.message || '网络错误') });
     }
   });
 
