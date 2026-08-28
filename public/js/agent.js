@@ -504,6 +504,10 @@
     app().classList.toggle('ai-busy', on);
     els.stop.hidden = !on;
     els.stop.disabled = false;
+    els.send.textContent = on ? '■' : '↑';
+    els.send.title = on ? '停止生成' : '发送';
+    if (els.send.setAttribute) els.send.setAttribute('aria-label', on ? '停止生成' : '发送');
+    if (els.send.classList) els.send.classList.toggle('is-stop', on);
     els.send.disabled = on || !cfg.hasApiKey;
     lockDoc(on);
     renderAtts();                                                // 生成期间不许改附件
@@ -809,6 +813,11 @@
       if (!run) return;
       els.stop.disabled = true;
       run.controller.abort();
+    });
+    els.send.addEventListener('click', function (ev) {
+      if (!run) return;
+      ev.preventDefault();
+      els.stop.click();
     });
     els.form.addEventListener('submit', function (ev) { ev.preventDefault(); submit(); });
     els.input.addEventListener('keydown', function (ev) {

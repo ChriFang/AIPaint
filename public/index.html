@@ -218,11 +218,11 @@
             </div>
           </div>
           <select id="chat-model" class="chat-model" title="选择模型" aria-label="选择模型"></select>
+          <button id="chat-send" class="chat-send-icon" type="submit" title="发送" aria-label="发送">↑</button>
         </div>
         <div class="chat-actions">
           <!-- 状态行本身就是配置入口，所以是个真按钮：焦点、Enter、读屏都免费拿到 -->
           <button class="chat-hint" id="chat-hint" type="button" title="点击配置模型"></button>
-          <button id="chat-send" class="primary" type="submit">发送</button>
         </div>
         <!-- 不能复用工具栏的 #file-image：它的 change 处理器直接把图插进画布 -->
         <input type="file" id="file-chat-image" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
