@@ -65,6 +65,10 @@
     dash: { t: 'enum', values: M.DASH_STYLES, def: 'solid' },
     radius: { t: 'number', min: 0, max: 100000, def: 0, desc: '圆角半径' },
     arrowSize: { t: 'number', min: 0, max: 200, def: 0, desc: '箭头大小，0=按线宽自动' },
+    arrowStart: { t: 'boolean', def: false, desc: '连接线起点是否有箭头' },
+    arrowEnd: { t: 'boolean', def: true, desc: '连接线终点是否有箭头' },
+    startId: { t: 'string', max: 64, desc: '连接线起点图形 id' },
+    endId: { t: 'string', max: 64, desc: '连接线终点图形 id' },
 
     points: { t: 'points', req: true, desc: '顶点数组 [[x,y],...]，至少 2 个' },
     smooth: { t: 'boolean', def: false, desc: 'false=顶点折线（三角形、折线图、连接线用这个）；true=平滑手绘曲线，点不再是顶点' },
@@ -79,20 +83,26 @@
     italic: { t: 'boolean', def: false },
     lineHeight: { t: 'number', min: 0.8, max: 4, def: 1.3 },
 
-    srcRef: { t: 'string', max: 64, req: true, desc: '图片句柄，只能用画布清单里列出的 srcRef（含用户刚上传的）；你无法自己生成图片数据' }
+    srcRef: { t: 'string', max: 64, req: true, desc: '图片句柄，只能用画布清单里列出的 srcRef（含用户刚上传的）；你无法自己生成图片数据' },
+    children: { t: 'stringList', max: 64, desc: '容器包含的图形 id 列表' },
+    title: { t: 'text', max: 200, desc: '容器标题' }
   };
 
   var BOX = ['x', 'y', 'w', 'h'];
   var COMMON = ['id', 'opacity', 'rotationDeg'];
   var TYPES = {
     rect: COMMON.concat(BOX, ['fill', 'stroke', 'strokeWidth', 'dash', 'radius']),
+    roundRect: COMMON.concat(BOX, ['fill', 'stroke', 'strokeWidth', 'dash', 'radius']),
     ellipse: COMMON.concat(BOX, ['fill', 'stroke', 'strokeWidth', 'dash']),
     diamond: COMMON.concat(BOX, ['fill', 'stroke', 'strokeWidth', 'dash']),
     line: COMMON.concat(['x1', 'y1', 'x2', 'y2', 'stroke', 'strokeWidth', 'dash']),
     arrow: COMMON.concat(['x1', 'y1', 'x2', 'y2', 'stroke', 'strokeWidth', 'dash', 'arrowSize']),
+    connector: COMMON.concat(['x1', 'y1', 'x2', 'y2', 'stroke', 'strokeWidth', 'dash', 'arrowStart', 'arrowEnd', 'startId', 'endId']),
     path: COMMON.concat(['points', 'smooth', 'closed', 'fill', 'stroke', 'strokeWidth', 'dash']),
     text: COMMON.concat(['x', 'y', 'text', 'maxWidth', 'fontSize', 'fontFamily', 'textAlign', 'bold', 'italic', 'lineHeight', 'fill']),
-    image: COMMON.concat(BOX, ['srcRef', 'stroke', 'strokeWidth'])
+    image: COMMON.concat(BOX, ['srcRef', 'stroke', 'strokeWidth']),
+    note: COMMON.concat(BOX, ['fill', 'stroke', 'strokeWidth', 'dash', 'radius', 'text', 'fontSize', 'fontFamily', 'textAlign', 'bold', 'italic', 'lineHeight']),
+    group: COMMON.concat(BOX, ['fill', 'stroke', 'strokeWidth', 'dash', 'radius', 'title', 'children'])
   };
 
   // 模型最容易写错的字段 → 直接告诉它对应的正确字段
@@ -165,6 +175,13 @@
         return { ok: false };
       }
       return { ok: true, value: v };
+    }
+    if (spec.t === 'stringList') {
+      if (!Array.isArray(v) || v.some((x) => typeof x !== 'string' || !x || x.length > spec.max)) {
+        probs.add(path, 'wrong_type', path + ' 必须是字符串数组');
+        return { ok: false };
+      }
+      return { ok: true, value: v.slice(0, 400) };
     }
     if (spec.t === 'color') {
       if (typeof v !== 'string' || !HEX_RE.test(v.trim())) {
@@ -250,10 +267,14 @@
       dash: v.dash === undefined ? 'solid' : v.dash,
       opacity: v.opacity === undefined ? 1 : v.opacity
     };
-    if (type === 'rect') s.radius = v.radius === undefined ? 0 : v.radius;
-    if (type === 'line' || type === 'arrow') {
+    if (type === 'rect' || type === 'roundRect' || type === 'note' || type === 'group') s.radius = v.radius === undefined ? 0 : v.radius;
+    if (type === 'line' || type === 'arrow' || type === 'connector') {
       s.x1 = v.x1; s.y1 = v.y1; s.x2 = v.x2; s.y2 = v.y2;
       if (type === 'arrow') s.arrowSize = v.arrowSize === undefined ? 0 : v.arrowSize;
+      if (type === 'connector') {
+        s.arrowStart = v.arrowStart === true; s.arrowEnd = v.arrowEnd !== false;
+        s.startId = v.startId || ''; s.endId = v.endId || '';
+      }
     }
     if (type === 'path') {
       s.points = v.points;
@@ -272,6 +293,16 @@
       if (v.fill === undefined) s.fill = '#1f2933';
     }
     if (type === 'image') s.src = srcRefs[v.srcRef];
+    if (type === 'note') {
+      s.text = v.text; s.fontSize = v.fontSize === undefined ? 20 : v.fontSize;
+      s.fontFamily = v.fontFamily === undefined ? 'sans' : v.fontFamily;
+      s.textAlign = v.textAlign === undefined ? 'left' : v.textAlign;
+      s.lineHeight = v.lineHeight === undefined ? 1.3 : v.lineHeight;
+      s.bold = v.bold === true; s.italic = v.italic === true;
+    }
+    if (type === 'group') {
+      s.title = v.title || ''; s.children = Array.isArray(v.children) ? v.children.slice() : [];
+    }
     return s;
   }
 
@@ -469,6 +500,28 @@
 
     var shapes = normalizeShapeList(raw.shapes, probs, opts, {});
     if (!shapes || probs.any()) return probs.reject('scene 被拒绝：' + (probs.list.length + probs.dropped) + ' 处问题');
+    var ids = {};
+    shapes.forEach(function (s) { ids[s.id] = true; });
+    shapes.forEach(function (s, i) {
+      if (s.type === 'group') {
+        s.children = s.children.filter(function (id) {
+          if (id === s.id || !ids[id]) {
+            probs.add('scene.shapes[' + i + '].children', 'unknown_ref', '容器包含了无效图形 id: ' + id);
+            return false;
+          }
+          return true;
+        });
+      }
+      if (s.type === 'connector') {
+        if (s.startId && !ids[s.startId]) {
+          probs.add('scene.shapes[' + i + '].startId', 'unknown_ref', '连接线起点不存在: ' + s.startId);
+        }
+        if (s.endId && !ids[s.endId]) {
+          probs.add('scene.shapes[' + i + '].endId', 'unknown_ref', '连接线终点不存在: ' + s.endId);
+        }
+      }
+    });
+    if (probs.any()) return probs.reject('scene 被拒绝：存在无效图形引用');
 
     var scene = { width: width, height: height, background: bg.value, shapes: shapes };
     var finalScene = finalize(scene, probs, opts);
@@ -919,6 +972,9 @@
       j.type = 'boolean';
     } else if (spec.t === 'string') {
       j.type = 'string'; j.maxLength = spec.max;
+    } else if (spec.t === 'stringList') {
+      j.type = 'array'; j.maxItems = 400;
+      j.items = { type: 'string', maxLength: spec.max };
     } else if (spec.t === 'text') {
       j.type = 'string'; j.maxLength = LIMITS.maxTextLength;
     } else if (spec.t === 'color') {

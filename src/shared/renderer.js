@@ -80,22 +80,30 @@
     ctx.closePath();
   }
 
-  function drawArrowHead(ctx, shape) {
-    var dx = shape.x2 - shape.x1, dy = shape.y2 - shape.y1;
+  function drawArrowHead(ctx, shape, x, y, angle) {
+    var dx = x === undefined ? shape.x2 - shape.x1 : x;
+    var dy = y === undefined ? shape.y2 - shape.y1 : y;
     var len = Math.sqrt(dx * dx + dy * dy);
     if (len < 0.5) return;
     var lw = Math.max(1, num(shape.strokeWidth, 2));
     var size = num(shape.arrowSize, 0) || clamp(lw * 4.5, 8, Math.max(8, len * 0.45));
-    var ang = Math.atan2(dy, dx);
+    var ang = angle === undefined ? Math.atan2(dy, dx) : angle;
     var spread = 0.42;
     ctx.beginPath();
-    ctx.moveTo(shape.x2, shape.y2);
-    ctx.lineTo(shape.x2 - size * Math.cos(ang - spread), shape.y2 - size * Math.sin(ang - spread));
-    ctx.lineTo(shape.x2 - size * Math.cos(ang + spread), shape.y2 - size * Math.sin(ang + spread));
+    var tx = angle === undefined ? shape.x2 : shape.x1;
+    var ty = angle === undefined ? shape.y2 : shape.y1;
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx - size * Math.cos(ang - spread), ty - size * Math.sin(ang - spread));
+    ctx.lineTo(tx - size * Math.cos(ang + spread), ty - size * Math.sin(ang + spread));
     ctx.closePath();
     ctx.fillStyle = isVisible(shape.stroke) ? shape.stroke : '#1f2933';
     ctx.setLineDash([]);
     ctx.fill();
+  }
+  function drawTextCard(ctx, shape, opts) {
+    roundRectPath(ctx, shape.x, shape.y, shape.w, shape.h, num(shape.radius, 12));
+    paint(ctx, shape);
+    drawText(ctx, shape, opts);
   }
   /**
    * 路径描边。smooth !== false 时用二次贝塞尔在相邻点中点之间过渡，得到顺滑的手绘线；
@@ -211,6 +219,10 @@
         roundRectPath(ctx, b.x, b.y, b.w, b.h, num(shape.radius, 0));
         paint(ctx, shape);
         break;
+      case 'roundRect':
+        roundRectPath(ctx, b.x, b.y, b.w, b.h, num(shape.radius, 8));
+        paint(ctx, shape);
+        break;
       case 'ellipse':
         drawEllipse(ctx, b);
         paint(ctx, shape);
@@ -230,12 +242,37 @@
         }
         if (shape.type === 'arrow') drawArrowHead(ctx, shape);
         break;
+      case 'connector':
+        ctx.beginPath();
+        ctx.moveTo(shape.x1, shape.y1);
+        ctx.lineTo(shape.x2, shape.y2);
+        if (isVisible(shape.stroke) && ctx.lineWidth > 0) {
+          ctx.strokeStyle = shape.stroke; ctx.stroke();
+        }
+        if (shape.arrowEnd !== false) drawArrowHead(ctx, shape);
+        if (shape.arrowStart) {
+          drawArrowHead(ctx, { stroke: shape.stroke, strokeWidth: shape.strokeWidth,
+            x1: shape.x2, y1: shape.y2, x2: shape.x1, y2: shape.y1 });
+        }
+        break;
       case 'path':
         drawFreehand(ctx, shape.points || [], shape.closed, shape.smooth);
         if (isVisible(shape.fill)) { ctx.fillStyle = shape.fill; ctx.fill(); }
         if (isVisible(shape.stroke) && ctx.lineWidth > 0) { ctx.strokeStyle = shape.stroke; ctx.stroke(); }
         break;
       case 'text': drawText(ctx, shape, opts); break;
+      case 'note': drawTextCard(ctx, shape, opts); break;
+      case 'group':
+        roundRectPath(ctx, b.x, b.y, b.w, b.h, num(shape.radius, 8));
+        paint(ctx, shape);
+        if (shape.title) {
+          var title = Object.assign({}, shape, { text: shape.title, x: b.x + 12, y: b.y + 8,
+            w: Math.max(8, b.w - 24), h: num(shape.fontSize, 16) * 1.3,
+            fill: isVisible(shape.stroke) ? shape.stroke : '#1f2933', stroke: 'transparent',
+            fontSize: num(shape.fontSize, 16) });
+          drawText(ctx, title, opts);
+        }
+        break;
       case 'image': drawImage(ctx, shape, opts); break;
     }
     ctx.restore();

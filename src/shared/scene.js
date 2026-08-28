@@ -19,7 +19,7 @@
     maxImageChars: 8 * 1024 * 1024
   };
 
-  var SHAPE_TYPES = ['rect', 'ellipse', 'diamond', 'line', 'arrow', 'path', 'text', 'image'];
+  var SHAPE_TYPES = ['rect', 'roundRect', 'ellipse', 'diamond', 'line', 'arrow', 'connector', 'path', 'text', 'note', 'group', 'image'];
   var DASH_STYLES = ['solid', 'dashed', 'dotted'];
   var FONT_KEYS = ['sans', 'serif', 'mono'];
   var TEXT_ALIGNS = ['left', 'center', 'right'];
@@ -96,8 +96,12 @@
     if (s.type === 'line' || s.type === 'arrow') {
       s.x1 = 0; s.y1 = 0; s.x2 = 100; s.y2 = 100;
     }
+    if (s.type === 'connector') {
+      s.x1 = 0; s.y1 = 0; s.x2 = 100; s.y2 = 100;
+      s.arrowStart = false; s.arrowEnd = true;
+    }
     if (s.type === 'path') s.points = [];
-    if (s.type === 'rect') s.radius = STYLE_DEFAULTS.radius;
+    if (s.type === 'rect' || s.type === 'roundRect') s.radius = STYLE_DEFAULTS.radius;
     if (s.type === 'text') {
       s.text = '';
       s.fontSize = STYLE_DEFAULTS.fontSize;
@@ -108,6 +112,15 @@
       s.fill = '#1f2933';
       s.stroke = 'transparent';
       s.w = 10; s.h = s.fontSize * 1.3;
+    }
+    if (s.type === 'note') {
+      s.text = ''; s.radius = 12; s.fontSize = 20; s.fontFamily = 'sans';
+      s.textAlign = 'left'; s.bold = false; s.italic = false; s.lineHeight = 1.3;
+      s.fill = '#fff3bf'; s.stroke = '#d6a84f';
+    }
+    if (s.type === 'group') {
+      s.children = []; s.title = ''; s.radius = STYLE_DEFAULTS.radius;
+      s.fill = 'transparent'; s.stroke = '#98a2b3';
     }
     if (s.type === 'image') { s.src = ''; s.stroke = 'transparent'; }
     if (patch) for (var k in patch) if (Object.prototype.hasOwnProperty.call(patch, k)) s[k] = patch[k];
@@ -125,7 +138,7 @@
 
   /** 图形未旋转时的包围盒（局部坐标系，同时也是旋转中心的依据） */
   function shapeBBox(s) {
-    if (s.type === 'line' || s.type === 'arrow') {
+    if (s.type === 'line' || s.type === 'arrow' || s.type === 'connector') {
       return normRect(num(s.x1, 0), num(s.y1, 0), num(s.x2, 0), num(s.y2, 0));
     }
     if (s.type === 'path') {
@@ -163,7 +176,7 @@
   }
 
   function translateShape(s, dx, dy) {
-    if (s.type === 'line' || s.type === 'arrow') {
+    if (s.type === 'line' || s.type === 'arrow' || s.type === 'connector') {
       s.x1 += dx; s.y1 += dy; s.x2 += dx; s.y2 += dy;
       return s;
     }
@@ -236,14 +249,19 @@
       opacity: clamp(num(raw.opacity, 1), 0, 1)
     };
 
-    if (type === 'rect') s.radius = clamp(num(raw.radius, 0), 0, 1e5);
+    if (type === 'rect' || type === 'roundRect' || type === 'note' || type === 'group') s.radius = clamp(num(raw.radius, 0), 0, 1e5);
 
-    if (type === 'line' || type === 'arrow') {
+    if (type === 'line' || type === 'arrow' || type === 'connector') {
       s.x1 = clamp(num(raw.x1, 0), -1e6, 1e6);
       s.y1 = clamp(num(raw.y1, 0), -1e6, 1e6);
       s.x2 = clamp(num(raw.x2, 0), -1e6, 1e6);
       s.y2 = clamp(num(raw.y2, 0), -1e6, 1e6);
       if (type === 'arrow') s.arrowSize = clamp(num(raw.arrowSize, 0), 0, 200);
+      if (type === 'connector') {
+        s.arrowStart = !!raw.arrowStart; s.arrowEnd = raw.arrowEnd !== false;
+        s.startId = typeof raw.startId === 'string' ? raw.startId.slice(0, 64) : '';
+        s.endId = typeof raw.endId === 'string' ? raw.endId.slice(0, 64) : '';
+      }
     }
 
     if (type === 'path') {
@@ -291,6 +309,20 @@
       }
       s.src = src;
     }
+    if (type === 'note') {
+      s.text = typeof raw.text === 'string' ? raw.text.slice(0, LIMITS.maxTextLength) : '';
+      s.fontSize = clamp(num(raw.fontSize, 20), 4, 800);
+      s.fontFamily = oneOf(raw.fontFamily, FONT_KEYS, 'sans');
+      s.textAlign = oneOf(raw.textAlign, TEXT_ALIGNS, 'left');
+      s.lineHeight = clamp(num(raw.lineHeight, 1.3), 0.8, 4);
+      s.bold = !!raw.bold; s.italic = !!raw.italic;
+    }
+    if (type === 'group') {
+      s.title = typeof raw.title === 'string' ? raw.title.slice(0, 200) : '';
+      s.children = Array.isArray(raw.children) ? raw.children.filter(function (id) {
+        return typeof id === 'string' && id !== s.id;
+      }).slice(0, 400) : [];
+    }
     return s;
   }
   /**
@@ -314,6 +346,18 @@
     for (var i = 0; i < list.length; i++) {
       var s = sanitizeShape(list[i], warnings);
       if (s) scene.shapes.push(s);
+    }
+    var ids = {};
+    for (var j = 0; j < scene.shapes.length; j++) ids[scene.shapes[j].id] = true;
+    for (var k = 0; k < scene.shapes.length; k++) {
+      var shape = scene.shapes[k];
+      if (shape.type === 'group') {
+        shape.children = shape.children.filter(function (id) { return ids[id]; });
+      }
+      if (shape.type === 'connector') {
+        if (shape.startId && !ids[shape.startId]) shape.startId = '';
+        if (shape.endId && !ids[shape.endId]) shape.endId = '';
+      }
     }
     return { scene: scene, warnings: warnings };
   }

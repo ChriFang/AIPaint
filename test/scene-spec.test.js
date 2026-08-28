@@ -43,9 +43,15 @@ const ALL_TYPES = [
   { type: 'diamond', x: 30, y: 30, w: 40, h: 40, fill: '#00ff00', dash: 'dashed' },
   { type: 'line', x1: 0, y1: 0, x2: 100, y2: 100, stroke: '#123456' },
   { type: 'arrow', x1: 5, y1: 5, x2: 90, y2: 10, stroke: '#abc', arrowSize: 12 },
+  { type: 'roundRect', x: 10, y: 380, w: 120, h: 60, radius: 14, fill: '#dbeafe' },
+  { type: 'connector', x1: 130, y1: 410, x2: 240, y2: 410, startId: 'box-a', endId: 'box-b', arrowEnd: true },
+  { id: 'box-a', type: 'rect', x: 10, y: 470, w: 80, h: 40 },
+  { id: 'box-b', type: 'rect', x: 180, y: 470, w: 80, h: 40 },
   { type: 'path', points: [[0, 0], [50, 0], [25, 40]], closed: true, smooth: false, fill: '#eeeeee' },
   { type: 'text', x: 100, y: 200, text: '标题 Title', fontSize: 32, bold: true },
   { type: 'text', x: 100, y: 300, text: '正文很长很长很长很长很长很长', maxWidth: 120, textAlign: 'center' },
+  { id: 'note-a', type: 'note', x: 300, y: 100, w: 180, h: 100, text: '提示', radius: 12, fill: '#fff3bf' },
+  { id: 'group-a', type: 'group', x: 280, y: 240, w: 260, h: 180, title: '模块', children: ['note-a'] },
   { type: 'rect', x: 0, y: 0, w: 10, h: 10, rotationDeg: 45, opacity: 0.5, fill: '#00000080' }
 ];
 
@@ -301,7 +307,7 @@ test('工具 schema 从字段表生成，strict 变体剥掉不支持的关键�
   const list = S.tools(false);
   assert.deepEqual(list.map((t) => t.function.name), ['set_scene', 'edit_scene', 'get_scene']);
   const shapes = list[0].function.parameters.properties.shapes;
-  assert.equal(shapes.items.anyOf.length, 8);
+  assert.equal(shapes.items.anyOf.length, 12);
   const rect = shapes.items.anyOf.find((s) => s.properties.type.enum[0] === 'rect');
   assert.equal(rect.additionalProperties, false);
   assert.deepEqual(rect.required, ['type', 'x', 'y', 'w', 'h']);

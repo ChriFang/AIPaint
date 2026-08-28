@@ -132,7 +132,7 @@
       for (var k in patch) {
         if (!Object.prototype.hasOwnProperty.call(patch, k)) continue;
         // 文本图形不接受圆角，直线不接受填充，避免脏字段
-        if (k === 'radius' && sel[i].type !== 'rect') continue;
+        if (k === 'radius' && ['rect', 'roundRect', 'note', 'group'].indexOf(sel[i].type) < 0) continue;
         sel[i][k] = patch[k];
       }
     }
@@ -145,6 +145,13 @@
     var kill = {};
     for (var i = 0; i < state.selection.length; i++) kill[state.selection[i]] = true;
     state.scene.shapes = state.scene.shapes.filter(function (s) { return !kill[s.id]; });
+    state.scene.shapes.forEach(function (s) {
+      if (s.type === 'group') s.children = (s.children || []).filter(function (id) { return !kill[id]; });
+      if (s.type === 'connector') {
+        if (kill[s.startId]) { s.startId = ''; }
+        if (kill[s.endId]) { s.endId = ''; }
+      }
+    });
     state.selection = [];
     state.editingTextId = null;
     commit();
@@ -158,6 +165,13 @@
     for (var i = 0; i < sel.length; i++) {
       var copy = clone(sel[i]);
       copy.id = M.createId();
+      if (copy.type === 'group') copy.children = (copy.children || []).filter(function (id) {
+        return state.selection.indexOf(id) >= 0;
+      });
+      if (copy.type === 'connector') {
+        if (state.selection.indexOf(copy.startId) < 0) copy.startId = '';
+        if (state.selection.indexOf(copy.endId) < 0) copy.endId = '';
+      }
       M.translateShape(copy, d, d);
       state.scene.shapes.push(copy);
       ids.push(copy.id);

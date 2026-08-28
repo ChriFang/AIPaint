@@ -8,7 +8,7 @@
   var Store = global.Store;
   var View = global.View;
 
-  var SHAPE_TOOLS = { rect: 1, ellipse: 1, diamond: 1, line: 1, arrow: 1 };
+  var SHAPE_TOOLS = { rect: 1, roundRect: 1, ellipse: 1, diamond: 1, line: 1, arrow: 1, connector: 1, note: 1 };
   var canvas = null;
   var textEditor = null;
   var drag = null;
@@ -180,6 +180,15 @@
     if (!originals.length) return;
     drag = { mode: 'move', start: wp, originals: originals, moved: false };
   }
+  function translateWithChildren(shape, dx, dy) {
+    M.translateShape(shape, dx, dy);
+    if (shape.type !== 'group') return;
+    var children = shape.children || [];
+    for (var i = 0; i < children.length; i++) {
+      var child = Store.shapeById(children[i]);
+      if (child) M.translateShape(child, dx, dy);
+    }
+  }
 
   function startResize(hit, wp) {
     drag = {
@@ -207,7 +216,7 @@
 
   function startDraw(tool, wp) {
     var p = snapPoint(wp);
-    var patch = (tool === 'line' || tool === 'arrow')
+    var patch = (tool === 'line' || tool === 'arrow' || tool === 'connector')
       ? { x1: p.x, y1: p.y, x2: p.x, y2: p.y }
       : { x: p.x, y: p.y, w: 0, h: 0 };
     var shape = M.createShape(tool, Object.assign(patch, styleFor(tool)));
@@ -234,6 +243,18 @@
     Store.setTool('select');
     openTextEditor(shape);
   }
+  function createGroup() {
+    var ids = Store.state.selection.slice();
+    if (ids.length < 2) return;
+    var children = Store.selectedShapes();
+    var box = M.unionBBox(children);
+    var group = M.createShape('group', {
+      x: box.x - 16, y: box.y - 30, w: box.w + 32, h: box.h + 46,
+      children: ids.slice(), title: '分组'
+    });
+    Store.addShape(group);
+    Store.setTool('select');
+  }
   /* ---------------- 指针事件 ---------------- */
 
   function onPointerDown(ev) {
@@ -250,6 +271,7 @@
     if (Store.state.editingTextId) closeTextEditor();
 
     var tool = drawLocked() ? 'select' : Store.state.tool;
+    if (tool === 'group') { createGroup(); return; }
     if (tool === 'select') {
       var h = View.handleAt(wp);
       if (h) {
@@ -275,6 +297,17 @@
     }
     if (tool === 'pen') { startPen(wp); return; }
     if (tool === 'text') { createText(wp); return; }
+    if (tool === 'note') {
+      var note = M.createShape('note', {
+        x: wp.x, y: wp.y, w: 220, h: 140, text: '',
+        stroke: Store.state.style.stroke, strokeWidth: Store.state.style.strokeWidth,
+        opacity: Store.state.style.opacity
+      });
+      Store.addShape(note);
+      Store.setTool('select');
+      openTextEditor(note);
+      return;
+    }
     if (SHAPE_TOOLS[tool]) { startDraw(tool, wp); return; }
   }
 
@@ -320,7 +353,7 @@
         s = Store.shapeById(o.id);
         if (!s) continue;
         resetGeom(s, o.geom);
-        M.translateShape(s, dx, dy);
+        translateWithChildren(s, dx, dy);
       }
       drag.moved = drag.moved || Math.abs(dx) + Math.abs(dy) > 0;
       Store.touch();

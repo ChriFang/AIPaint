@@ -395,7 +395,7 @@
   }
 
   function syncProps(source, type, selCount) {
-    var isText = type === 'text';
+    var isText = type === 'text' || type === 'note';
     var fillNone = !M.isVisible(source.fill);
     var strokeNone = !M.isVisible(source.stroke);
     if (!fillNone) lastFill = toHex(source.fill, lastFill);
@@ -416,7 +416,7 @@
 
     // 圆角只对矩形有意义；没选中时作为新矩形的默认值一直显示
     doc.querySelectorAll('[data-only="rect"]').forEach(function (row) {
-      row.hidden = !!type && type !== 'rect';
+      row.hidden = !!type && ['rect', 'roundRect', 'note', 'group'].indexOf(type) < 0;
     });
     doc.querySelectorAll('[data-only="text"]').forEach(function (row) {
       row.hidden = !!type && !isText;
@@ -445,8 +445,8 @@
     }
   }
   var TYPE_LABELS = {
-    rect: '矩形', ellipse: '椭圆', diamond: '菱形', line: '直线',
-    arrow: '箭头', path: '手绘线', text: '文本', image: '图片'
+    rect: '矩形', roundRect: '圆角矩形', ellipse: '椭圆', diamond: '菱形', line: '直线',
+    arrow: '箭头', connector: '连接线', path: '手绘线', text: '文本', note: '便签', group: '分组', image: '图片'
   };
 
   function sync() {
